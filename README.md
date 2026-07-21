@@ -9,11 +9,10 @@ seus dados), Android + iOS com Kotlin Multiplatform.
 
 ## Status do projeto
 
-- [x] **Fase 1 — Backend (Go):** autenticação, mensagens 1-a-1, tempo real, anti-abuso ✅
+- [x] **Fase 1 — Backend (Go):** auth, mensagens 1-a-1, **grupos**, lista de conversas, tempo real, anti-abuso, **testes** ✅
 - [ ] Fase 2 — Apps Android + iOS (Kotlin Multiplatform)
 - [ ] Fase 3 — Design da interface
 - [ ] Fase 4 — Fotos (feed e perfil)
-- [ ] Grupos (tabelas prontas, falta API + UI)
 
 ---
 
@@ -29,6 +28,9 @@ go mod tidy
 
 # roda o servidor
 go run ./cmd/server
+
+# roda os testes automatizados
+go test ./...
 ```
 
 O servidor sobe em `http://localhost:8080`. Testa se está no ar:

@@ -75,6 +75,20 @@ controla o servidor.
 > Uma evolução futura é o "Double Ratchet" (o que dá ao Signal o *forward
 > secrecy*: mesmo que uma chave vaze, mensagens antigas continuam seguras).
 
+#### E2E em grupo é diferente (e mais difícil)
+
+No 1-a-1, a Ana criptografa com a chave pública do Beto e pronto. Num grupo de
+10 pessoas, criptografar 10 vezes a cada mensagem seria caro. A solução (mesma
+do WhatsApp/Signal) chama-se **"sender key"** (chave de remetente):
+
+1. Cada membro cria uma chave secreta própria e a envia aos outros membros
+   **usando o canal 1-a-1 já criptografado** (reaproveita o mecanismo de cima).
+2. Depois, criptografa cada mensagem **uma vez** com essa chave, e todos abrem.
+
+O **servidor continua burro**: ele só guarda quem está em qual grupo e distribui
+(*fan-out*) o envelope fechado pra todos os membros. Ele nunca vê chave nem
+texto. A distribuição das sender keys é toda no app (Fase 2).
+
 ---
 
 ## Por que essas escolhas de tecnologia?
@@ -140,8 +154,16 @@ backend/
 | POST | `/api/login` | não | Loga e devolve um token |
 | GET | `/api/me` | sim | Dados do usuário logado |
 | GET | `/api/users/{username}` | sim | Perfil + chave pública de alguém |
-| POST | `/api/messages` | sim | Envia mensagem (já criptografada) |
-| GET | `/api/conversations/{outroID}` | sim | Histórico de uma conversa |
+| POST | `/api/messages` | sim | Envia mensagem 1-a-1 (já criptografada) |
+| GET | `/api/conversations` | sim | Lista de conversas (tela inicial) |
+| GET | `/api/conversations/{outroID}` | sim | Histórico de uma conversa 1-a-1 |
+| POST | `/api/groups` | sim | Cria um grupo |
+| GET | `/api/groups` | sim | Lista meus grupos |
+| GET | `/api/groups/{id}` | sim | Detalhes + membros (só membros) |
+| POST | `/api/groups/{id}/members` | sim | Adiciona membro (só o dono) |
+| DELETE | `/api/groups/{id}/members/{userID}` | sim | Remove/sai do grupo |
+| POST | `/api/groups/{id}/messages` | sim | Envia mensagem no grupo |
+| GET | `/api/groups/{id}/messages` | sim | Histórico do grupo (só membros) |
 | WS | `/ws?token=...` | sim | Canal de tempo real |
 
 ---

@@ -58,8 +58,20 @@ func main() {
 	}
 	mux.Handle("GET /api/me", protected(h.Me))
 	mux.Handle("GET /api/users/", protected(h.GetUserByUsername)) // /api/users/{username}
+
+	// Mensagens e conversas 1-a-1
 	mux.Handle("POST /api/messages", protected(h.SendMessage))
+	mux.Handle("GET /api/conversations", protected(h.ListConversations))
 	mux.Handle("GET /api/conversations/{otherID}", protected(h.GetConversation))
+
+	// Grupos
+	mux.Handle("POST /api/groups", protected(h.CreateGroup))
+	mux.Handle("GET /api/groups", protected(h.ListMyGroups))
+	mux.Handle("GET /api/groups/{groupID}", protected(h.GetGroup))
+	mux.Handle("POST /api/groups/{groupID}/members", protected(h.AddMember))
+	mux.Handle("DELETE /api/groups/{groupID}/members/{userID}", protected(h.RemoveMember))
+	mux.Handle("POST /api/groups/{groupID}/messages", protected(h.SendGroupMessage))
+	mux.Handle("GET /api/groups/{groupID}/messages", protected(h.GetGroupMessages))
 
 	// --- WebSocket (autentica pelo ?token= por dentro) ---
 	mux.HandleFunc("GET /ws", hub.ServeWS)
