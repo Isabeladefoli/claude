@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema base do app (a janela da Activity). Como toda a interface é feita
+         em Jetpack Compose, este tema só precisa ser válido — o visual de
+         verdade (cores, tipografia) você vai definir depois, em Compose.
+         Usamos um tema da plataforma pra não depender de bibliotecas extras. -->
+    <style name="Theme.PrivateMessenger" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

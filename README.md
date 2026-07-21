@@ -10,7 +10,9 @@ seus dados), Android + iOS com Kotlin Multiplatform.
 ## Status do projeto
 
 - [x] **Fase 1 — Backend (Go):** auth, mensagens 1-a-1, **grupos**, lista de conversas, tempo real, anti-abuso, **testes** ✅
-- [ ] Fase 2 — Apps Android + iOS (Kotlin Multiplatform)
+- [x] **Fase 2a — App Android (Kotlin + Compose):** cadastro, login, conversas e chat em tempo real (fluxo, sem design) ✅ → veja [`android/README.md`](android/README.md)
+- [ ] Fase 2b — Criptografia E2E de verdade (libsodium) no app
+- [ ] Fase 2c — Migrar a camada de dados pra Kotlin Multiplatform + iOS
 - [ ] Fase 3 — Design da interface
 - [ ] Fase 4 — Fotos (feed e perfil)
 

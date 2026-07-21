@@ -1,0 +1,16 @@
+# Arquivos gerados pelo build (não versionar)
+.gradle/
+build/
+app/build/
+
+# Configuração local da máquina (aponta pro seu Android SDK) — nunca versionar
+local.properties
+
+# Arquivos do Android Studio / IDE
+.idea/
+*.iml
+.DS_Store
+
+# Logs e caches
+*.log
+captures/
