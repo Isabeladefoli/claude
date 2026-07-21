@@ -1,0 +1,12 @@
+# Banco de dados local (nunca versionar — contém dados de usuários)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Binários compilados
+/server
+*.exe
+
+# Variáveis de ambiente com segredos
+.env
