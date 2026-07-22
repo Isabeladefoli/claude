@@ -149,6 +149,17 @@ data class SupportRequest(
     val body: String,
 )
 
+// --- Mídia ---
+
+// Resposta do upload: id + caminho (url relativa) do arquivo no servidor.
+@Serializable
+data class MediaResponse(
+    val id: String,
+    val url: String, // ex: "/api/media/abc123" — o cliente junta com a baseUrl
+    val mime: String? = null,
+    val size: Long? = null,
+)
+
 @Serializable
 data class ErrorResponse(
     val error: String,

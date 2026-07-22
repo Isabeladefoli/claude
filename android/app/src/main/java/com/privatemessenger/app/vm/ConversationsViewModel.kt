@@ -22,6 +22,7 @@ data class ConversationsUiState(
     val error: String? = null,
     val myUserId: Long = -1,
     val myUsername: String = "",
+    val myAvatar: String? = null,
     val filter: ChatFilter = ChatFilter.TODOS,
     val query: String = "",
     // Guarda o último chat "apagado de Todos" pra oferecer o "reverter".
@@ -132,9 +133,11 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
     private fun loadMe() {
         viewModelScope.launch {
             try {
+                val me = repo.me()
                 _state.value = _state.value.copy(
-                    myUsername = repo.currentUsername(),
-                    myUserId = repo.currentUserId() ?: -1,
+                    myUsername = me.username,
+                    myUserId = me.id,
+                    myAvatar = me.avatarUrl,
                 )
             } catch (_: Exception) {
                 // Sem problema deixar em branco se falhar; não é crítico.

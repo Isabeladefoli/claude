@@ -5,6 +5,8 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -12,6 +14,8 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -198,6 +202,23 @@ class ApiClient(private val tokenStore: TokenStore) {
             setBody(PasswordRequest(password))
         }
         if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    // --- Mídia ---
+
+    // Sobe um arquivo (multipart, campo "file") e devolve o id/url dele.
+    suspend fun uploadMedia(bytes: ByteArray, filename: String, mime: String): MediaResponse {
+        val resp = http.post(url("/api/media")) {
+            header("Authorization", authHeader())
+            setBody(MultiPartFormDataContent(formData {
+                append("file", bytes, Headers.build {
+                    append(HttpHeaders.ContentType, mime)
+                    append(HttpHeaders.ContentDisposition, "filename=\"$filename\"")
+                })
+            }))
+        }
+        if (resp.status != HttpStatusCode.Created) fail(resp)
+        return resp.body()
     }
 
     // --- Suporte ---

@@ -1,5 +1,9 @@
 package com.privatemessenger.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -105,10 +110,13 @@ private fun PasswordGate(repo: MessengerRepository, onBack: () -> Unit, onUnlock
 private fun AccountDetailsBody(repo: MessengerRepository, onBack: () -> Unit) {
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var username by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var birthday by remember { mutableStateOf("") }
+    var avatarPath by remember { mutableStateOf<String?>(null) }
+    var uploadingPhoto by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
     var feedbackOk by remember { mutableStateOf(true) }
 
@@ -119,7 +127,36 @@ private fun AccountDetailsBody(repo: MessengerRepository, onBack: () -> Unit) {
             username = me.username
             name = me.name ?: ""
             birthday = me.birthday ?: ""
+            avatarPath = me.avatarUrl
         } catch (_: Exception) {
+        }
+    }
+
+    // Seletor de foto do Android (não precisa de permissão — é o "Photo Picker").
+    // Ao escolher: lê os bytes, sobe pro servidor e salva como avatar.
+    val pickPhoto = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                uploadingPhoto = true
+                feedback = null
+                try {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw Exception("não consegui ler a imagem")
+                    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val path = repo.uploadMedia(bytes, "avatar", mime)
+                    repo.updateProfile(avatarUrl = path)
+                    avatarPath = path
+                    feedbackOk = true
+                    feedback = s.saved
+                } catch (e: Exception) {
+                    feedbackOk = false
+                    feedback = e.message
+                } finally {
+                    uploadingPhoto = false
+                }
+            }
         }
     }
 
@@ -142,7 +179,26 @@ private fun AccountDetailsBody(repo: MessengerRepository, onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Avatar(seed = name.ifBlank { username }, size = 84.dp)
+            // Toca na foto (ou no botão) pra escolher uma imagem da galeria.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable(enabled = !uploadingPhoto) {
+                    pickPhoto.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                },
+            ) {
+                Avatar(
+                    seed = name.ifBlank { username },
+                    size = 84.dp,
+                    avatarPath = avatarPath,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (uploadingPhoto) "enviando..." else "Trocar foto",
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
         Spacer(Modifier.height(20.dp))
 

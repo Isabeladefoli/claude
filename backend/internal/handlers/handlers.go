@@ -19,10 +19,21 @@ type Handlers struct {
 	DB     *sql.DB
 	Tokens *auth.TokenManager
 	Hub    *ws.Hub
+	// Pasta onde os arquivos de mídia são gravados. Preenchida pelo main após
+	// o New (mantém a assinatura de New simples e não quebra os testes).
+	MediaDir string
 }
 
 func New(db *sql.DB, tokens *auth.TokenManager, hub *ws.Hub) *Handlers {
 	return &Handlers{DB: db, Tokens: tokens, Hub: hub}
+}
+
+// mediaDir devolve a pasta de mídia, caindo num padrão se não foi configurada.
+func (h *Handlers) mediaDir() string {
+	if h.MediaDir == "" {
+		return "data/media"
+	}
+	return h.MediaDir
 }
 
 // ---- Helpers pra responder em JSON de forma consistente ----

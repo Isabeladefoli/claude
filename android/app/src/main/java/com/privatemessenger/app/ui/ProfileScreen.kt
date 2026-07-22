@@ -90,7 +90,7 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Avatar(seed = u.name ?: u.username, size = 96.dp)
+                    Avatar(seed = u.name ?: u.username, size = 96.dp, avatarPath = u.avatarUrl)
                     Spacer(Modifier.height(14.dp))
                     // Nome de exibição (se tiver) em destaque; @usuário embaixo.
                     Text(

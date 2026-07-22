@@ -85,7 +85,8 @@ class MessengerRepository(context: Context) {
         username: String? = null,
         name: String? = null,
         birthday: String? = null,
-    ): User = api.updateProfile(UpdateProfileRequest(username, name, birthday))
+        avatarUrl: String? = null,
+    ): User = api.updateProfile(UpdateProfileRequest(username, name, birthday, avatarUrl))
 
     suspend fun changePassword(current: String, new: String) = api.changePassword(current, new)
 
@@ -101,6 +102,19 @@ class MessengerRepository(context: Context) {
 
     suspend fun sendSupport(replyEmail: String, title: String, body: String) =
         api.sendSupport(replyEmail, title, body)
+
+    // --- Mídia ---
+
+    // Sobe um arquivo e devolve o caminho ("/api/media/xxx") pra referenciar.
+    suspend fun uploadMedia(bytes: ByteArray, filename: String, mime: String): String =
+        api.uploadMedia(bytes, filename, mime).url
+
+    // Junta a URL do servidor com o caminho da mídia, pra formar o endereço
+    // completo que o carregador de imagem (Coil) usa. Ex: baseUrl + "/api/media/x".
+    suspend fun mediaFullUrl(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        return tokenStore.currentBaseUrl().trimEnd('/') + path
+    }
 
     suspend fun setBaseUrl(url: String) = tokenStore.setBaseUrl(url)
 

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,13 +18,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 
 // ---------------------------------------------------------------------------
 // "Kit" de peças visuais reaproveitadas nas telas, pra tudo ficar com a mesma
@@ -59,24 +64,41 @@ fun TopBar(title: String, onBack: (() -> Unit)? = null) {
     }
 }
 
-// Avatar redondo. Enquanto não temos foto de verdade (Leva 2), mostramos a
-// inicial do nome/usuário num círculo — ou um 👤 se não houver nome.
+// Base do servidor (ex: http://192.168.x.x:8080), pra montar a URL completa das
+// imagens. É preenchida lá no topo do app (MainActivity) e lida aqui pelo Avatar.
+val LocalBaseUrl = staticCompositionLocalOf { "" }
+
+// Avatar redondo. Se houver foto (avatarPath, ex: "/api/media/xxx"), mostra a
+// foto de verdade (via Coil); senão, cai na inicial do nome ou num 👤.
 @Composable
-fun Avatar(seed: String?, size: Dp) {
+fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
+    val base = LocalBaseUrl.current
+    val fullUrl = avatarPath?.takeIf { it.isNotBlank() }?.let { base.trimEnd('/') + it }
+
     Box(
         modifier = Modifier
             .size(size)
-            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        val initial = seed?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
-        Text(
-            text = initial ?: "👤",
-            fontSize = (size.value / 2.4f).sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-        )
+        if (fullUrl != null) {
+            AsyncImage(
+                model = fullUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            val initial = seed?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
+            Text(
+                text = initial ?: "👤",
+                fontSize = (size.value / 2.4f).sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 

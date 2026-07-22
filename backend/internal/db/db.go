@@ -109,6 +109,17 @@ func migrate(db *sql.DB) error {
 		PRIMARY KEY (owner_id, contact_id)
 	);
 
+	-- Mídia (foto, áudio, vídeo, foto de perfil). O ARQUIVO em si mora no disco
+	-- (pasta de mídia); aqui guardamos só os dados dele. O "id" é aleatório e
+	-- também é o nome do arquivo no disco.
+	CREATE TABLE IF NOT EXISTS media (
+		id         TEXT    PRIMARY KEY,
+		owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		mime       TEXT    NOT NULL, -- tipo do arquivo (ex: image/jpeg)
+		size       INTEGER NOT NULL, -- tamanho em bytes
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
 	-- Reports de suporte que o usuário manda pela tela "Support". Guardamos aqui
 	-- pra que a dona do app leia; o e-mail de resposta é o que a pessoa digitou.
 	CREATE TABLE IF NOT EXISTS support_reports (

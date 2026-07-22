@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +27,7 @@ import com.privatemessenger.app.ui.ProfileScreen
 import com.privatemessenger.app.ui.SearchScreen
 import com.privatemessenger.app.ui.SettingsScreen
 import com.privatemessenger.app.ui.SupportScreen
+import com.privatemessenger.app.ui.components.LocalBaseUrl
 import com.privatemessenger.app.ui.theme.AppTheme
 import com.privatemessenger.app.ui.theme.FontSize
 import com.privatemessenger.app.ui.theme.ThemeMode
@@ -62,12 +64,17 @@ private fun App(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
     val theme by repo.themeMode.collectAsState(initial = ThemeMode.ESCURO)
     val font by repo.fontSize.collectAsState(initial = FontSize.NORMAL)
     val language by repo.language.collectAsState(initial = AppLanguage.PORTUGUES)
+    val baseUrl by repo.baseUrl.collectAsState(initial = "")
 
     AppTheme(themeMode = theme, fontSize = font, language = language) {
-        // safeDrawingPadding empurra o conteúdo pra longe da barra de status
-        // (edge-to-edge é o padrão a partir do Android 15).
-        Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
-            AppRoot(repo, onLogoutCleanup)
+        // Deixa a URL do servidor disponível pra qualquer Avatar montar o
+        // endereço completo da foto.
+        CompositionLocalProvider(LocalBaseUrl provides baseUrl) {
+            // safeDrawingPadding empurra o conteúdo pra longe da barra de status
+            // (edge-to-edge é o padrão a partir do Android 15).
+            Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                AppRoot(repo, onLogoutCleanup)
+            }
         }
     }
 }

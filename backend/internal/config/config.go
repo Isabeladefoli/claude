@@ -18,6 +18,10 @@ type Config struct {
 	// Caminho do arquivo SQLite. Ex: "data/messenger.db".
 	DBPath string
 
+	// Pasta onde os arquivos de mídia (fotos, áudios, vídeos, foto de perfil)
+	// ficam guardados no disco. O banco só guarda um "vale" apontando pra cá.
+	MediaDir string
+
 	// Segredo usado para assinar os tokens JWT de sessão. Se alguém descobrir
 	// isso, consegue forjar login de qualquer usuário — então é CRÍTICO que
 	// seja aleatório e secreto em produção.
@@ -35,8 +39,9 @@ func getEnv(key, fallback string) string {
 // Load monta a configuração lendo o ambiente.
 func Load() *Config {
 	cfg := &Config{
-		Addr:   getEnv("MSG_ADDR", ":8080"),
-		DBPath: getEnv("MSG_DB_PATH", "data/messenger.db"),
+		Addr:     getEnv("MSG_ADDR", ":8080"),
+		DBPath:   getEnv("MSG_DB_PATH", "data/messenger.db"),
+		MediaDir: getEnv("MSG_MEDIA_DIR", "data/media"),
 	}
 
 	// A chave JWT: se você definir MSG_JWT_SECRET no ambiente, usamos ela.

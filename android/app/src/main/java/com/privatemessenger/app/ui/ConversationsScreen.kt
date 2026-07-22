@@ -82,7 +82,7 @@ fun ConversationsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Avatar(seed = state.myUsername, size = 40.dp)
+                    Avatar(seed = state.myUsername, size = 40.dp, avatarPath = state.myAvatar)
                     Spacer(Modifier.width(10.dp))
                     Text(
                         state.myUsername.ifEmpty { "..." },
@@ -204,7 +204,7 @@ private fun ChatRow(
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(seed = chat.user.username, size = 44.dp)
+            Avatar(seed = chat.user.username, size = 44.dp, avatarPath = chat.user.avatarUrl)
             Spacer(Modifier.width(12.dp))
             Column {
                 val name = buildString {

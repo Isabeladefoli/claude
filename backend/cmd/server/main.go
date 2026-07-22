@@ -37,6 +37,7 @@ func main() {
 	tokens := auth.NewTokenManager(cfg.JWTSecret)
 	hub := ws.NewHub(tokens)
 	h := handlers.New(database, tokens, hub)
+	h.MediaDir = cfg.MediaDir // onde os arquivos de mídia são gravados
 
 	// 4) Define as rotas. Usamos o roteador padrão do Go 1.22+, que já entende
 	//    métodos (GET/POST) e parâmetros no caminho ({otherID}).
@@ -68,6 +69,10 @@ func main() {
 
 	// Suporte (tela Support): guarda o report do usuário.
 	mux.Handle("POST /api/support", protected(h.CreateSupportReport))
+
+	// Mídia: subir (exige login) e baixar (público — o id é a "senha" da URL).
+	mux.Handle("POST /api/media", protected(h.UploadMedia))
+	mux.HandleFunc("GET /api/media/{id}", h.ServeMedia)
 
 	// Mensagens e conversas 1-a-1
 	mux.Handle("POST /api/messages", protected(h.SendMessage))
