@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,11 @@ fun ConversationsScreen(
     val vm: ConversationsViewModel = viewModel(factory = conversationsViewModelFactory(repo))
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // Recarrega toda vez que a gente VOLTA pra essa tela (ex: saindo de uma
+    // conversa). Sem isso, mensagens recebidas enquanto você tava em outra
+    // tela só apareciam depois de abrir a conversa manualmente.
+    LaunchedEffect(Unit) { vm.refresh() }
 
     var newUsername by remember { mutableStateOf("") }
     var startError by remember { mutableStateOf<String?>(null) }

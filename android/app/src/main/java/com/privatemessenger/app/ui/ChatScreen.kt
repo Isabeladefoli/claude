@@ -36,7 +36,14 @@ fun ChatScreen(
     partnerUsername: String,
     onBack: () -> Unit,
 ) {
-    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory(repo, partnerId))
+    // A "key" é essencial aqui: sem ela, o Compose reaproveitava o MESMO
+    // ChatViewModel (com as mensagens da conversa anterior) mesmo ao abrir uma
+    // conversa com outra pessoa. Com a key presa ao partnerId, cada pessoa tem
+    // seu próprio ViewModel — trocar de conversa sempre carrega do zero.
+    val vm: ChatViewModel = viewModel(
+        key = "chat-$partnerId",
+        factory = chatViewModelFactory(repo, partnerId),
+    )
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
 
