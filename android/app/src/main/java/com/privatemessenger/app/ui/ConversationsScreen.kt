@@ -57,6 +57,13 @@ fun ConversationsScreen(
             Text("Conversas", modifier = Modifier.padding(bottom = 8.dp))
         }
 
+        if (state.myUsername.isNotEmpty()) {
+            Text(
+                "Logado como ${state.myUsername}",
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+
         // Iniciar conversa nova.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             OutlinedTextField(

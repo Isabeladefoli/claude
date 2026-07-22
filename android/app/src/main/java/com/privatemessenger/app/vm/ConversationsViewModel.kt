@@ -15,6 +15,7 @@ data class ConversationsUiState(
     val conversations: List<ConversationSummary> = emptyList(),
     val error: String? = null,
     val myUserId: Long = -1,
+    val myUsername: String = "",
 )
 
 class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel() {
@@ -23,8 +24,20 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
     val state: StateFlow<ConversationsUiState> = _state.asStateFlow()
 
     init {
+        loadMe()
         refresh()
         observeRealtime()
+    }
+
+    // Busca o usuário logado uma vez só (pro "Logado como {user}" no topo).
+    private fun loadMe() {
+        viewModelScope.launch {
+            try {
+                _state.value = _state.value.copy(myUsername = repo.currentUsername())
+            } catch (_: Exception) {
+                // Sem problema deixar em branco se falhar; não é crítico pra tela funcionar.
+            }
+        }
     }
 
     // Carrega a lista de conversas do servidor.
@@ -34,7 +47,11 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
             try {
                 val myId = repo.currentUserId() ?: -1
                 val list = repo.listConversations()
-                _state.value = ConversationsUiState(conversations = list, myUserId = myId)
+                _state.value = _state.value.copy(
+                    loading = false,
+                    conversations = list,
+                    myUserId = myId,
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(loading = false, error = e.message)
             }

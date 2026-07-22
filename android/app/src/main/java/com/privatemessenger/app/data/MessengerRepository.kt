@@ -53,6 +53,9 @@ class MessengerRepository(context: Context) {
 
     suspend fun currentUserId(): Long? = tokenStore.currentUserId()
 
+    // Busca o username de quem tá logado (pra mostrar "Logado como {user}").
+    suspend fun currentUsername(): String = api.me().username
+
     suspend fun setBaseUrl(url: String) = tokenStore.setBaseUrl(url)
 
     // --- Conversas e mensagens ---
