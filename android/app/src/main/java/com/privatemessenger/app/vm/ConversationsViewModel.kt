@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.privatemessenger.app.data.ConversationSummary
 import com.privatemessenger.app.data.MessengerRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // Estado da tela de lista de conversas.
@@ -64,5 +67,25 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
         viewModelScope.launch {
             repo.incomingMessages.collect { refresh() }
         }
+    }
+
+    // Poll enquanto a tela está visível — mesma ideia do chat: não depender só
+    // do WebSocket, que é instável no emulador.
+    private var pollJob: Job? = null
+
+    fun onScreenActive() {
+        refresh()
+        if (pollJob?.isActive == true) return
+        pollJob = viewModelScope.launch {
+            while (isActive) {
+                delay(4000)
+                refresh()
+            }
+        }
+    }
+
+    fun onScreenInactive() {
+        pollJob?.cancel()
+        pollJob = null
     }
 }

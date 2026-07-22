@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.privatemessenger.app.data.Message
 import com.privatemessenger.app.data.MessengerRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // Estado da tela de conversa (chat) com uma pessoa específica.
@@ -26,23 +29,56 @@ class ChatViewModel(
     private val _state = MutableStateFlow(ChatUiState(loading = true))
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    // Enquanto a tela do chat está visível, ficamos ressincronizando com o
+    // servidor de tempos em tempos. O servidor é a fonte da verdade; o tempo
+    // real (WebSocket) é só um "atalho" pra chegar instantâneo. Em emulador o
+    // WebSocket falha bastante, então esse poll garante que a conversa fica
+    // igual em todos os aparelhos mesmo se o tempo real não entregar.
+    private var pollJob: Job? = null
+
     init {
         loadHistory()
         observeRealtime()
     }
 
-    // Chamado toda vez que a tela de chat é reaberta. Recarrega do zero em
-    // vez de confiar só no tempo real: o WebSocket pode falhar em entregar
-    // pra um aparelho específico (ex: reconexão, app em segundo plano), e
-    // sem isso a conversa ficava "congelada" na última vez que foi carregada.
-    fun refresh() = loadHistory()
+    // Chamado quando a tela de chat aparece: recarrega e começa a ressincronizar.
+    fun onScreenActive() {
+        loadHistory()
+        if (pollJob?.isActive == true) return
+        pollJob = viewModelScope.launch {
+            while (isActive) {
+                delay(4000)
+                loadHistory()
+            }
+        }
+    }
+
+    // Chamado quando a tela some: para de ressincronizar (economiza bateria/rede).
+    fun onScreenInactive() {
+        pollJob?.cancel()
+        pollJob = null
+    }
 
     private fun loadHistory() {
         viewModelScope.launch {
             try {
-                val myId = repo.currentUserId() ?: -1
+                val myId = if (_state.value.myUserId != -1L) {
+                    _state.value.myUserId
+                } else {
+                    repo.currentUserId() ?: -1
+                }
                 val history = repo.getConversation(partnerId)
-                _state.value = ChatUiState(messages = history, myUserId = myId)
+                // Junta o que veio do servidor com o que já temos na tela,
+                // sem duplicar (por id) e mantendo a ordem cronológica.
+                val merged = (history + _state.value.messages)
+                    .distinctBy { it.id }
+                    .sortedBy { it.id }
+                _state.value = _state.value.copy(
+                    loading = false,
+                    messages = merged,
+                    myUserId = myId,
+                    error = null,
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(loading = false, error = e.message)
             }
@@ -86,11 +122,12 @@ class ChatViewModel(
     // Converte o conteúdo (por enquanto texto puro) pra exibição.
     fun displayText(msg: Message): String = repo.decryptForDisplay(msg)
 
-    // Evita duplicar a mesma mensagem (ex: chegou pelo envio E pelo WebSocket).
+    // Evita duplicar a mesma mensagem (ex: chegou pelo envio E pelo WebSocket)
+    // e mantém a lista ordenada por id (ordem cronológica).
     private fun appendUnique(msg: Message) {
         val current = _state.value.messages
         if (current.any { it.id == msg.id }) return
-        _state.value = _state.value.copy(messages = current + msg)
+        _state.value = _state.value.copy(messages = (current + msg).sortedBy { it.id })
     }
 
     fun clearError() {

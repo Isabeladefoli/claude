@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,10 +48,14 @@ fun ChatScreen(
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
 
-    // Recarrega o histórico toda vez que a conversa é (re)aberta — não confia
-    // só no tempo real, que pode não ter entregado tudo (ex: mensagem mandada
-    // de outro aparelho enquanto esse ficou momentaneamente desconectado).
-    LaunchedEffect(partnerId) { vm.refresh() }
+    // Enquanto essa tela está visível, o ViewModel ressincroniza com o servidor
+    // (poll). Quando a tela sai (voltar/trocar de conversa), paramos o poll.
+    // Assim a conversa fica igual em todos os aparelhos mesmo se o tempo real
+    // (WebSocket) falhar — o que acontece bastante em emulador.
+    DisposableEffect(partnerId) {
+        vm.onScreenActive()
+        onDispose { vm.onScreenInactive() }
+    }
 
     var draft by remember { mutableStateOf("") }
 
