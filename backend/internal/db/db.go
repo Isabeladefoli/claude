@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite" // driver SQLite (o "_" registra ele sem uso direto)
 )
@@ -57,6 +58,8 @@ func migrate(db *sql.DB) error {
 		id            INTEGER PRIMARY KEY AUTOINCREMENT,
 		username      TEXT    NOT NULL UNIQUE COLLATE NOCASE, -- NOCASE: "Ana" == "ana"
 		password_hash TEXT    NOT NULL,
+		name          TEXT,   -- nome de exibição (opcional)
+		birthday      TEXT,   -- data de nascimento em texto (opcional)
 		email         TEXT,
 		phone         TEXT,
 		public_key    TEXT    NOT NULL,
@@ -105,8 +108,35 @@ func migrate(db *sql.DB) error {
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (owner_id, contact_id)
 	);
+
+	-- Reports de suporte que o usuário manda pela tela "Support". Guardamos aqui
+	-- pra que a dona do app leia; o e-mail de resposta é o que a pessoa digitou.
+	CREATE TABLE IF NOT EXISTS support_reports (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		reply_email TEXT    NOT NULL,
+		title       TEXT    NOT NULL,
+		body        TEXT    NOT NULL,
+		created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+
+	// Migrações "adiciona coluna" para bancos que já existiam ANTES desses campos.
+	// Em banco novo as colunas já vêm do CREATE acima; aqui garantimos os antigos.
+	// SQLite não tem "ADD COLUMN IF NOT EXISTS", então ignoramos o erro de coluna
+	// duplicada (que só quer dizer "já existe, tudo certo").
+	addColumns := []string{
+		`ALTER TABLE users ADD COLUMN name TEXT`,
+		`ALTER TABLE users ADD COLUMN birthday TEXT`,
+	}
+	for _, stmt := range addColumns {
+		if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return fmt.Errorf("migração %q: %w", stmt, err)
+		}
+	}
+	return nil
 }

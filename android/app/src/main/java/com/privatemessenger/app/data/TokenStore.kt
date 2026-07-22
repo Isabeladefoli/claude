@@ -5,6 +5,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.privatemessenger.app.i18n.AppLanguage
+import com.privatemessenger.app.ui.theme.FontSize
+import com.privatemessenger.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -22,6 +25,11 @@ class TokenStore(private val context: Context) {
         val TOKEN = stringPreferencesKey("token")
         val USER_ID = longPreferencesKey("user_id")
         val BASE_URL = stringPreferencesKey("base_url")
+        // Preferências de aparência/idioma. Ficam FORA do clear() de logout: são
+        // do aparelho, não da conta (não faz sentido perder o tema ao deslogar).
+        val THEME = stringPreferencesKey("theme")
+        val FONT = stringPreferencesKey("font")
+        val LANG = stringPreferencesKey("lang")
     }
 
     // Flows: valores que "avisam" a interface quando mudam. Ex: ao deslogar, as
@@ -48,8 +56,35 @@ class TokenStore(private val context: Context) {
         context.dataStore.edit { it[Keys.BASE_URL] = url }
     }
 
+    // --- Preferências (aparência + idioma) ---
+
+    val themeMode: Flow<ThemeMode> = context.dataStore.data.map {
+        runCatching { ThemeMode.valueOf(it[Keys.THEME] ?: "") }.getOrDefault(ThemeMode.ESCURO)
+    }
+    val fontSize: Flow<FontSize> = context.dataStore.data.map {
+        runCatching { FontSize.valueOf(it[Keys.FONT] ?: "") }.getOrDefault(FontSize.NORMAL)
+    }
+    val language: Flow<AppLanguage> = context.dataStore.data.map {
+        runCatching { AppLanguage.valueOf(it[Keys.LANG] ?: "") }.getOrDefault(AppLanguage.PORTUGUES)
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { it[Keys.THEME] = mode.name }
+    }
+    suspend fun setFontSize(size: FontSize) {
+        context.dataStore.edit { it[Keys.FONT] = size.name }
+    }
+    suspend fun setLanguage(lang: AppLanguage) {
+        context.dataStore.edit { it[Keys.LANG] = lang.name }
+    }
+
+    // clear() remove só a SESSÃO (token + id). Mantém a URL do servidor e as
+    // preferências de aparência/idioma, que são do aparelho e não da conta.
     suspend fun clear() {
-        context.dataStore.edit { it.clear() }
+        context.dataStore.edit {
+            it.remove(Keys.TOKEN)
+            it.remove(Keys.USER_ID)
+        }
     }
 
     // Leituras "uma vez" (sem observar), úteis dentro do cliente de rede.

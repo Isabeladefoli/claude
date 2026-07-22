@@ -1,6 +1,9 @@
 package com.privatemessenger.app.data
 
 import android.content.Context
+import com.privatemessenger.app.i18n.AppLanguage
+import com.privatemessenger.app.ui.theme.FontSize
+import com.privatemessenger.app.ui.theme.ThemeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
@@ -29,10 +32,25 @@ class MessengerRepository(context: Context) {
     val userId: Flow<Long?> = tokenStore.userId
     val baseUrl: Flow<String> = tokenStore.baseUrl
 
+    // Preferências de aparência/idioma (a interface observa e reage na hora).
+    val themeMode: Flow<ThemeMode> = tokenStore.themeMode
+    val fontSize: Flow<FontSize> = tokenStore.fontSize
+    val language: Flow<AppLanguage> = tokenStore.language
+
+    suspend fun setThemeMode(mode: ThemeMode) = tokenStore.setThemeMode(mode)
+    suspend fun setFontSize(size: FontSize) = tokenStore.setFontSize(size)
+    suspend fun setLanguage(lang: AppLanguage) = tokenStore.setLanguage(lang)
+
     // --- Autenticação ---
 
-    suspend fun register(username: String, password: String, publicKey: String): AuthResponse {
-        val auth = api.register(RegisterRequest(username, password, publicKey))
+    suspend fun register(
+        username: String,
+        password: String,
+        publicKey: String,
+        name: String? = null,
+        birthday: String? = null,
+    ): AuthResponse {
+        val auth = api.register(RegisterRequest(username, password, publicKey, name, birthday))
         realtime.start() // já conecta o tempo real após entrar
         return auth
     }
@@ -55,6 +73,34 @@ class MessengerRepository(context: Context) {
 
     // Busca o username de quem tá logado (pra mostrar "Logado como {user}").
     suspend fun currentUsername(): String = api.me().username
+
+    // Perfil completo do usuário logado (nome, aniversário, etc).
+    suspend fun me(): User = api.me()
+
+    // --- Conta (tela Account details) ---
+
+    suspend fun verifyPassword(password: String): Boolean = api.verifyPassword(password)
+
+    suspend fun updateProfile(
+        username: String? = null,
+        name: String? = null,
+        birthday: String? = null,
+    ): User = api.updateProfile(UpdateProfileRequest(username, name, birthday))
+
+    suspend fun changePassword(current: String, new: String) = api.changePassword(current, new)
+
+    // Apaga a conta no servidor E limpa a sessão local (não sobra token de conta
+    // que não existe mais).
+    suspend fun deleteAccount(password: String) {
+        api.deleteAccount(password)
+        realtime.stop()
+        tokenStore.clear()
+    }
+
+    // --- Suporte ---
+
+    suspend fun sendSupport(replyEmail: String, title: String, body: String) =
+        api.sendSupport(replyEmail, title, body)
 
     suspend fun setBaseUrl(url: String) = tokenStore.setBaseUrl(url)
 

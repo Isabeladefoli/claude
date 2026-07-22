@@ -26,7 +26,9 @@ var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]{3,20}$`)
 type registerRequest struct {
 	Username  string  `json:"username"`
 	Password  string  `json:"password"`
-	PublicKey string  `json:"public_key"`     // chave pública gerada no celular
+	PublicKey string  `json:"public_key"` // chave pública gerada no celular
+	Name      *string `json:"name,omitempty"`
+	Birthday  *string `json:"birthday,omitempty"`
 	Email     *string `json:"email,omitempty"`
 	Phone     *string `json:"phone,omitempty"`
 }
@@ -67,11 +69,15 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normaliza campos opcionais em branco pra NULL (não guardar "" à toa).
+	name := trimmedOrNil(req.Name)
+	birthday := trimmedOrNil(req.Birthday)
+
 	// Insere o usuário. Se o username já existir, o UNIQUE do banco barra.
 	res, err := h.DB.Exec(
-		`INSERT INTO users (username, password_hash, email, phone, public_key)
-		 VALUES (?, ?, ?, ?, ?)`,
-		req.Username, hash, req.Email, req.Phone, req.PublicKey,
+		`INSERT INTO users (username, password_hash, name, birthday, email, phone, public_key)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		req.Username, hash, name, birthday, req.Email, req.Phone, req.PublicKey,
 	)
 	if err != nil {
 		// Erro mais comum aqui: username duplicado.

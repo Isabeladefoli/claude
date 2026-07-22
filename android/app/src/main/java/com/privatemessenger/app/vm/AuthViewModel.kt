@@ -28,7 +28,14 @@ class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
 
     // submit trata tanto login quanto cadastro (isRegister decide qual).
-    fun submit(isRegister: Boolean, username: String, password: String) {
+    // No cadastro, name e birthday são opcionais (a pessoa preenche se quiser).
+    fun submit(
+        isRegister: Boolean,
+        username: String,
+        password: String,
+        name: String = "",
+        birthday: String = "",
+    ) {
         // Validação simples no cliente, antes de bater no servidor.
         if (username.isBlank() || password.length < 8) {
             _state.value = AuthUiState(error = "Usuário e senha (mín. 8 caracteres) são obrigatórios")
@@ -40,7 +47,13 @@ class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
             try {
                 if (isRegister) {
                     val publicKey = DeviceKeys.placeholderPublicKey()
-                    repo.register(username.trim(), password, publicKey)
+                    repo.register(
+                        username.trim(),
+                        password,
+                        publicKey,
+                        name = name.trim().ifBlank { null },
+                        birthday = birthday.trim().ifBlank { null },
+                    )
                 } else {
                     repo.login(username.trim(), password)
                 }

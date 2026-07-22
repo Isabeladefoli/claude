@@ -59,6 +59,16 @@ func main() {
 	mux.Handle("GET /api/me", protected(h.Me))
 	mux.Handle("GET /api/users/", protected(h.GetUserByUsername)) // /api/users/{username}
 
+	// Conta (tela Account details): atualizar perfil, trocar/conferir senha,
+	// apagar conta. As ações sensíveis pedem a senha de novo por dentro.
+	mux.Handle("POST /api/me/update", protected(h.UpdateProfile))
+	mux.Handle("POST /api/me/password", protected(h.ChangePassword))
+	mux.Handle("POST /api/me/verify", protected(h.VerifyPassword))
+	mux.Handle("POST /api/me/delete", protected(h.DeleteAccount))
+
+	// Suporte (tela Support): guarda o report do usuário.
+	mux.Handle("POST /api/support", protected(h.CreateSupportReport))
+
 	// Mensagens e conversas 1-a-1
 	mux.Handle("POST /api/messages", protected(h.SendMessage))
 	mux.Handle("GET /api/conversations", protected(h.ListConversations))

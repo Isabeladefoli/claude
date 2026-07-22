@@ -17,6 +17,8 @@ data class RegisterRequest(
     val username: String,
     val password: String,
     @SerialName("public_key") val publicKey: String,
+    val name: String? = null,
+    val birthday: String? = null,
     val email: String? = null,
     val phone: String? = null,
 )
@@ -37,6 +39,8 @@ data class AuthResponse(
 data class User(
     val id: Long,
     val username: String,
+    val name: String? = null,
+    val birthday: String? = null,
     val email: String? = null,
     val phone: String? = null,
     @SerialName("public_key") val publicKey: String,
@@ -112,6 +116,37 @@ data class ChatsResponse(
 @Serializable
 data class AddContactRequest(
     val username: String,
+)
+
+// --- Conta (tela Account details) ---
+
+@Serializable
+data class UpdateProfileRequest(
+    val username: String? = null,
+    val name: String? = null,
+    val birthday: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+)
+
+@Serializable
+data class ChangePasswordRequest(
+    @SerialName("current_password") val currentPassword: String,
+    @SerialName("new_password") val newPassword: String,
+)
+
+// Usado tanto pra "conferir senha" (trava da tela) quanto pra apagar conta.
+@Serializable
+data class PasswordRequest(
+    val password: String,
+)
+
+// --- Suporte ---
+
+@Serializable
+data class SupportRequest(
+    @SerialName("reply_email") val replyEmail: String,
+    val title: String,
+    val body: String,
 )
 
 @Serializable

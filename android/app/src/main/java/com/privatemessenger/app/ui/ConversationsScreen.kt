@@ -1,6 +1,7 @@
 package com.privatemessenger.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,13 +12,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -29,7 +32,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,28 +39,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.privatemessenger.app.BUILD_TAG
 import com.privatemessenger.app.data.ChatItem
 import com.privatemessenger.app.data.MessengerRepository
+import com.privatemessenger.app.ui.components.Avatar
 import com.privatemessenger.app.vm.ChatFilter
 import com.privatemessenger.app.vm.ConversationsViewModel
-import kotlinx.coroutines.launch
 
 // Lista de chats (tela inicial). Tem:
+//  - cabeçalho: seu nome + engrenagem (abre configurações)
 //  - busca (filtra a lista dentro do filtro escolhido)
 //  - botão "Tipos de chat": Todos / Salvos / Não salvos
 //  - a lista em si (clicar abre; segurar apaga de "Todos")
-//  - botão flutuante "+" pra adicionar contato ou só conversar
+//  - botão flutuante "+" que abre a BUSCA de usuários
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ConversationsScreen(
     repo: MessengerRepository,
     onOpenChat: (partnerId: Long, partnerUsername: String) -> Unit,
-    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val vm: ConversationsViewModel = viewModel(factory = conversationsViewModelFactory(repo))
     val state by vm.state.collectAsState()
-    val scope = rememberCoroutineScope()
 
     // Poll enquanto a tela está visível (para quando some).
     DisposableEffect(Unit) {
@@ -66,32 +68,39 @@ fun ConversationsScreen(
         onDispose { vm.onScreenInactive() }
     }
 
-    var showAddDialog by remember { mutableStateOf(false) }
     var filterMenuOpen by remember { mutableStateOf(false) }
-
     val visible = vm.visibleChats()
 
     Box(modifier = Modifier.fillMaxSize()) {
 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
-            // Cabeçalho
-            Text(
-                "Conversas  (build $BUILD_TAG)",
-                fontWeight = FontWeight.Bold,
-            )
+            // Cabeçalho: avatar + nome à esquerda, engrenagem à direita.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (state.myUsername.isNotEmpty()) {
-                    Text("Logado como ${state.myUsername}")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(seed = state.myUsername, size = 40.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        state.myUsername.ifEmpty { "..." },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
                 }
-                TextButton(onClick = onLogout) { Text("Sair") }
+                // Engrenagem (⚙) — abre o menu de configurações.
+                Box(
+                    modifier = Modifier.size(40.dp).clickable { onOpenSettings() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("⚙", fontSize = 24.sp)
+                }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
 
             // Barra de busca (funciona como filtro dentro do tipo escolhido).
             OutlinedTextField(
@@ -107,7 +116,7 @@ fun ConversationsScreen(
             // Botão "Tipos de chat" com as três opções.
             Box {
                 OutlinedButton(onClick = { filterMenuOpen = true }) {
-                    Text("Tipos de chat: ${filterLabel(state.filter)}")
+                    Text("Tipo de chat: ${filterLabel(state.filter)}")
                 }
                 DropdownMenu(expanded = filterMenuOpen, onDismissRequest = { filterMenuOpen = false }) {
                     DropdownMenuItem(
@@ -163,38 +172,13 @@ fun ConversationsScreen(
             }
         }
 
-        // Botão flutuante "+" (adicionar contato / conversar).
+        // Botão flutuante "+" — abre a busca de usuários (adicionar / conversar).
         FloatingActionButton(
-            onClick = { showAddDialog = true },
+            onClick = { onOpenSearch() },
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
         ) {
             Text("+", fontSize = 26.sp)
         }
-    }
-
-    if (showAddDialog) {
-        AddChatDialog(
-            onDismiss = { showAddDialog = false },
-            onAdd = { name, done ->
-                vm.addContact(name) { result ->
-                    if (result.isSuccess) {
-                        showAddDialog = false
-                    }
-                    done(result.exceptionOrNull()?.message)
-                }
-            },
-            onJustChat = { name, done ->
-                scope.launch {
-                    try {
-                        val user = repo.findUser(name.trim())
-                        showAddDialog = false
-                        onOpenChat(user.id, user.username)
-                    } catch (e: Exception) {
-                        done("Usuário não encontrado")
-                    }
-                }
-            },
-        )
     }
 }
 
@@ -210,26 +194,32 @@ private fun ChatRow(
     var menuOpen by remember { mutableStateOf(false) }
 
     Box {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
                     onClick = onOpen,
                     onLongClick = { menuOpen = true },
                 )
-                .padding(vertical = 12.dp),
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            val name = buildString {
-                append(chat.user.username)
-                if (isMe) append(" (eu)")
-                if (chat.saved) append("  ★")
-            }
-            Text(name, fontWeight = FontWeight.Bold)
-            // Prévia da última mensagem, ou marca de contato salvo sem conversa.
-            val preview = chat.lastMessage?.ciphertext
-                ?: if (chat.saved) "Contato salvo" else ""
-            if (preview.isNotEmpty()) {
-                Text(preview)
+            Avatar(seed = chat.user.username, size = 44.dp)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                val name = buildString {
+                    append(chat.user.username)
+                    if (isMe) append(" (eu)")
+                    if (chat.saved) append("  ★")
+                }
+                Text(name, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground)
+                // Prévia da última mensagem, ou marca de contato salvo sem conversa.
+                val preview = chat.lastMessage?.ciphertext
+                    ?: if (chat.saved) "Contato salvo" else ""
+                if (preview.isNotEmpty()) {
+                    Text(preview, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
 
@@ -242,52 +232,10 @@ private fun ChatRow(
     }
 }
 
-// Diálogo de adicionar/conversar por nome de usuário.
-@Composable
-private fun AddChatDialog(
-    onDismiss: () -> Unit,
-    onAdd: (username: String, done: (error: String?) -> Unit) -> Unit,
-    onJustChat: (username: String, done: (error: String?) -> Unit) -> Unit,
-) {
-    var username by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Adicionar ou conversar") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it; error = null },
-                    label = { Text("Nome de usuário") },
-                    singleLine = true,
-                )
-                if (error != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text("Erro: $error")
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                if (username.isBlank()) { error = "Digite um nome"; return@Button }
-                onAdd(username) { err -> error = err }
-            }) { Text("Adicionar") }
-        },
-        dismissButton = {
-            TextButton(onClick = {
-                if (username.isBlank()) { error = "Digite um nome"; return@TextButton }
-                onJustChat(username) { err -> error = err }
-            }) { Text("Só conversar") }
-        },
-    )
-}
-
 private fun filterLabel(f: ChatFilter): String = when (f) {
-    ChatFilter.TODOS -> "Todos"
-    ChatFilter.SALVOS -> "Salvos"
-    ChatFilter.NAO_SALVOS -> "Não salvos"
+    ChatFilter.TODOS -> "todos"
+    ChatFilter.SALVOS -> "salvos"
+    ChatFilter.NAO_SALVOS -> "não salvos"
 }
 
 private fun emptyLabel(f: ChatFilter, query: String): String {

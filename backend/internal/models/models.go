@@ -15,6 +15,8 @@ type User struct {
 	ID           int64     `json:"id"`
 	Username     string    `json:"username"`
 	PasswordHash string    `json:"-"` // `json:"-"` = nunca sai numa resposta JSON
+	Name         *string   `json:"name,omitempty"`     // nome de exibição (o que a pessoa quiser)
+	Birthday     *string   `json:"birthday,omitempty"` // data de nascimento (texto, ex: "11/11/2000")
 	Email        *string   `json:"email,omitempty"`
 	Phone        *string   `json:"phone,omitempty"`
 	PublicKey    string    `json:"public_key"` // chave pública X25519, base64

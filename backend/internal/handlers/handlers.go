@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/isabeladefoli/private-messenger/backend/internal/auth"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ws"
@@ -51,4 +52,18 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
 		return false
 	}
 	return true
+}
+
+// trimmedOrNil recebe um ponteiro de string (campo opcional do JSON) e devolve:
+//   - nil, se o campo veio ausente ou só com espaços (não guardamos "" à toa)
+//   - um ponteiro pro texto já sem espaços nas pontas, caso contrário
+func trimmedOrNil(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	t := strings.TrimSpace(*s)
+	if t == "" {
+		return nil
+	}
+	return &t
 }

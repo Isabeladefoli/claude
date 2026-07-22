@@ -160,6 +160,57 @@ class ApiClient(private val tokenStore: TokenStore) {
         if (resp.status != HttpStatusCode.OK) fail(resp)
     }
 
+    // --- Conta (tela Account details) ---
+
+    // Confere a senha atual (trava pra entrar na tela). true = senha certa.
+    suspend fun verifyPassword(password: String): Boolean {
+        val resp = http.post(url("/api/me/verify")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(PasswordRequest(password))
+        }
+        return resp.status == HttpStatusCode.OK
+    }
+
+    suspend fun updateProfile(req: UpdateProfileRequest): User {
+        val resp = http.post(url("/api/me/update")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(req)
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+        return resp.body()
+    }
+
+    suspend fun changePassword(current: String, new: String) {
+        val resp = http.post(url("/api/me/password")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(ChangePasswordRequest(current, new))
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    suspend fun deleteAccount(password: String) {
+        val resp = http.post(url("/api/me/delete")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(PasswordRequest(password))
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    // --- Suporte ---
+
+    suspend fun sendSupport(replyEmail: String, title: String, body: String) {
+        val resp = http.post(url("/api/support")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(SupportRequest(replyEmail, title, body))
+        }
+        if (resp.status != HttpStatusCode.Created) fail(resp)
+    }
+
     suspend fun sendMessage(recipientId: Long, ciphertext: String, nonce: String): Message {
         val resp = http.post(url("/api/messages")) {
             header("Authorization", authHeader())

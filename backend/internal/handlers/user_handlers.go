@@ -41,10 +41,10 @@ func (h *Handlers) GetUserByUsername(w http.ResponseWriter, r *http.Request) {
 
 	var u models.User
 	err := h.DB.QueryRow(
-		`SELECT id, username, public_key, avatar_url, created_at
+		`SELECT id, username, name, public_key, avatar_url, created_at
 		 FROM users WHERE username = ?`,
 		username,
-	).Scan(&u.ID, &u.Username, &u.PublicKey, &u.AvatarURL, &u.CreatedAt)
+	).Scan(&u.ID, &u.Username, &u.Name, &u.PublicKey, &u.AvatarURL, &u.CreatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "usuário não encontrado")
@@ -62,10 +62,10 @@ func (h *Handlers) GetUserByUsername(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) getUserByID(id int64) (*models.User, error) {
 	var u models.User
 	err := h.DB.QueryRow(
-		`SELECT id, username, email, phone, public_key, avatar_url, created_at
+		`SELECT id, username, name, birthday, email, phone, public_key, avatar_url, created_at
 		 FROM users WHERE id = ?`,
 		id,
-	).Scan(&u.ID, &u.Username, &u.Email, &u.Phone, &u.PublicKey, &u.AvatarURL, &u.CreatedAt)
+	).Scan(&u.ID, &u.Username, &u.Name, &u.Birthday, &u.Email, &u.Phone, &u.PublicKey, &u.AvatarURL, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
