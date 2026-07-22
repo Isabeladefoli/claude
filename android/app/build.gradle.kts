@@ -74,9 +74,4 @@ dependencies {
 
     // --- Corrotinas (código assíncrono: rede sem travar a tela) ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-
-    // --- Carregar imagens da rede (foto de perfil, fotos no chat) ---
-    // Coil é a biblioteca padrão de imagens no Compose: baixa, faz cache e mostra
-    // com um componente só (AsyncImage), sem a gente escrever isso na mão.
-    implementation("io.coil-kt:coil-compose:2.7.0")
 }

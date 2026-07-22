@@ -1,5 +1,6 @@
 package com.privatemessenger.app.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 
 // ---------------------------------------------------------------------------
 // "Kit" de peças visuais reaproveitadas nas telas, pra tudo ficar com a mesma
@@ -74,6 +74,7 @@ val LocalBaseUrl = staticCompositionLocalOf { "" }
 fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
     val base = LocalBaseUrl.current
     val fullUrl = avatarPath?.takeIf { it.isNotBlank() }?.let { base.trimEnd('/') + it }
+    val photo = rememberNetworkImage(fullUrl)
 
     Box(
         modifier = Modifier
@@ -83,14 +84,15 @@ fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
             .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        if (fullUrl != null) {
-            AsyncImage(
-                model = fullUrl,
+        if (photo != null) {
+            Image(
+                bitmap = photo,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
+            // Sem foto (ou ainda carregando/falhou): mostra a inicial ou 👤.
             val initial = seed?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
             Text(
                 text = initial ?: "👤",
