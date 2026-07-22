@@ -80,6 +80,10 @@ func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
 	// offline, tudo bem — a mensagem já está salva e ele pega no histórico.
 	if payload, err := ws.Pack("message", msg); err == nil {
 		h.Hub.SendToUser(req.RecipientID, payload)
+		// Também avisa os OUTROS aparelhos do remetente (multi-device): sem
+		// isso, se a Isa manda mensagem pelo celular, o PC dela (mesma conta)
+		// só saberia dessa conversa nova ao reabrir o app.
+		h.Hub.SendToUser(senderID, payload)
 	}
 
 	writeJSON(w, http.StatusCreated, msg)
