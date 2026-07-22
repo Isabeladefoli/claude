@@ -46,9 +46,14 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
     }
 
     // Carrega a lista de conversas do servidor.
+    //
+    // Repare: NÃO ligamos "loading = true" aqui. O spinner de carregamento só
+    // aparece na primeira vez (o estado já nasce com loading = true), e some
+    // quando os dados chegam. Como o refresh roda a cada 4s por baixo, ligar o
+    // loading toda vez faria "Carregando" piscar na tela — péssimo. Então o
+    // refresh atualiza os dados de forma SILENCIOSA.
     fun refresh() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, error = null)
             try {
                 val myId = repo.currentUserId() ?: -1
                 val list = repo.listConversations()
@@ -56,9 +61,15 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
                     loading = false,
                     conversations = list,
                     myUserId = myId,
+                    error = null,
                 )
             } catch (e: Exception) {
-                _state.value = _state.value.copy(loading = false, error = e.message)
+                // Só mostra erro se a tela ainda está vazia. Se já temos
+                // conversas na tela, uma falha momentânea de um poll não deve
+                // apagar tudo e mostrar erro — mantemos o que já está exibido.
+                if (_state.value.conversations.isEmpty()) {
+                    _state.value = _state.value.copy(loading = false, error = e.message)
+                }
             }
         }
     }

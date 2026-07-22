@@ -80,7 +80,12 @@ class ChatViewModel(
                     error = null,
                 )
             } catch (e: Exception) {
-                _state.value = _state.value.copy(loading = false, error = e.message)
+                // Poll silencioso: se já temos mensagens na tela, uma falha
+                // momentânea não deve apagá-las nem mostrar erro. Só mostramos
+                // erro quando ainda não há nada carregado.
+                if (_state.value.messages.isEmpty()) {
+                    _state.value = _state.value.copy(loading = false, error = e.message)
+                }
             }
         }
     }
