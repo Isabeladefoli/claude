@@ -10,3 +10,6 @@ data/
 
 # Variáveis de ambiente com segredos
 .env
+
+# Segredo do JWT gerado localmente pelo start.sh (nunca versionar)
+.jwt_secret
