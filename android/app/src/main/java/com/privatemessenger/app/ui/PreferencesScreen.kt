@@ -20,9 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.privatemessenger.app.data.MessengerRepository
 import com.privatemessenger.app.i18n.LocalStrings
 import com.privatemessenger.app.ui.components.TopBar
+import com.privatemessenger.app.ui.theme.ChatWallpaper
 import com.privatemessenger.app.ui.theme.FontSize
 import com.privatemessenger.app.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
@@ -35,8 +38,9 @@ fun PreferencesScreen(repo: MessengerRepository, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val theme by repo.themeMode.collectAsState(initial = ThemeMode.ESCURO)
     val font by repo.fontSize.collectAsState(initial = FontSize.NORMAL)
+    val wallpaper by repo.chatWallpaper.collectAsState(initial = ChatWallpaper.PADRAO)
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         TopBar(title = s.preferences, onBack = onBack)
         Spacer(Modifier.height(16.dp))
 
@@ -72,6 +76,24 @@ fun PreferencesScreen(repo: MessengerRepository, onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(24.dp))
+
+        // --- Papel de parede do chat ---
+        Text("Papel de parede do chat", fontWeight = FontWeight.Bold, fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(8.dp))
+        // As opções em linhas de 3.
+        ChatWallpaper.values().toList().chunked(3).forEach { rowItems ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowItems.forEach { w ->
+                    Choice(w.label, selected = wallpaper == w) {
+                        scope.launch { repo.setChatWallpaper(w) }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        Spacer(Modifier.height(16.dp))
         // Uma amostra de texto pra a pessoa ver o efeito na hora.
         Text(
             "Aa — 💙",

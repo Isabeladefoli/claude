@@ -35,6 +35,8 @@ class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
         password: String,
         name: String = "",
         birthday: String = "",
+        avatarBytes: ByteArray? = null,
+        avatarMime: String? = null,
     ) {
         // Validação simples no cliente, antes de bater no servidor.
         if (username.isBlank() || password.length < 8) {
@@ -54,6 +56,15 @@ class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
                         name = name.trim().ifBlank { null },
                         birthday = birthday.trim().ifBlank { null },
                     )
+                    // Se a pessoa escolheu foto no cadastro, sobe agora (já está
+                    // logada). Se falhar, não atrapalha a criação da conta.
+                    if (avatarBytes != null) {
+                        try {
+                            val path = repo.uploadMedia(avatarBytes, "avatar", avatarMime ?: "image/jpeg")
+                            repo.updateProfile(avatarUrl = path)
+                        } catch (_: Exception) {
+                        }
+                    }
                 } else {
                     repo.login(username.trim(), password)
                 }

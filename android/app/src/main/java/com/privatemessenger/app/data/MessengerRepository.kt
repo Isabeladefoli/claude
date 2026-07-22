@@ -2,6 +2,7 @@ package com.privatemessenger.app.data
 
 import android.content.Context
 import com.privatemessenger.app.i18n.AppLanguage
+import com.privatemessenger.app.ui.theme.ChatWallpaper
 import com.privatemessenger.app.ui.theme.FontSize
 import com.privatemessenger.app.ui.theme.ThemeMode
 import kotlinx.coroutines.CoroutineScope
@@ -36,10 +37,12 @@ class MessengerRepository(context: Context) {
     val themeMode: Flow<ThemeMode> = tokenStore.themeMode
     val fontSize: Flow<FontSize> = tokenStore.fontSize
     val language: Flow<AppLanguage> = tokenStore.language
+    val chatWallpaper: Flow<ChatWallpaper> = tokenStore.chatWallpaper
 
     suspend fun setThemeMode(mode: ThemeMode) = tokenStore.setThemeMode(mode)
     suspend fun setFontSize(size: FontSize) = tokenStore.setFontSize(size)
     suspend fun setLanguage(lang: AppLanguage) = tokenStore.setLanguage(lang)
+    suspend fun setChatWallpaper(w: ChatWallpaper) = tokenStore.setChatWallpaper(w)
 
     // --- Autenticação ---
 

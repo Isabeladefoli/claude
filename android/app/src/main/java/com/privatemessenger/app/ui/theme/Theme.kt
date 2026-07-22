@@ -29,6 +29,19 @@ enum class ThemeMode { ESCURO, CLARO }
 // Cada opção carrega o "fator" de escala aplicado nas letras.
 enum class FontSize(val scale: Float) { PEQUENA(0.85f), NORMAL(1.0f), GRANDE(1.25f) }
 
+// Papel de parede do chat (fundo atrás das bolhas de mensagem). PADRAO = usa a
+// cor de fundo do tema; as outras são cores próprias. `color = null` quer dizer
+// "usa o fundo do tema".
+enum class ChatWallpaper(val label: String, val color: Color?) {
+    PADRAO("Padrão", null),
+    NOITE("Azul-noite", Color(0xFF0E1A2B)),
+    OCEANO("Oceano", Color(0xFF0B2530)),
+    ROXO("Roxo", Color(0xFF1E1533)),
+    VERDE("Verde", Color(0xFF10231A)),
+    GRAFITE("Grafite", Color(0xFF17181C)),
+    BEGE("Bege", Color(0xFFEDE6D6)),
+}
+
 // --- Paleta ESCURA (o visual do mockup: azul-marinho quase preto) ---
 private val DarkColors = darkColorScheme(
     primary = Color(0xFF3E5BF0),          // azul dos botões

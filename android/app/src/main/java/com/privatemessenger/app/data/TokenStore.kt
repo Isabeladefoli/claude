@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.privatemessenger.app.i18n.AppLanguage
+import com.privatemessenger.app.ui.theme.ChatWallpaper
 import com.privatemessenger.app.ui.theme.FontSize
 import com.privatemessenger.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,7 @@ class TokenStore(private val context: Context) {
         val THEME = stringPreferencesKey("theme")
         val FONT = stringPreferencesKey("font")
         val LANG = stringPreferencesKey("lang")
+        val WALLPAPER = stringPreferencesKey("wallpaper")
     }
 
     // Flows: valores que "avisam" a interface quando mudam. Ex: ao deslogar, as
@@ -67,6 +69,9 @@ class TokenStore(private val context: Context) {
     val language: Flow<AppLanguage> = context.dataStore.data.map {
         runCatching { AppLanguage.valueOf(it[Keys.LANG] ?: "") }.getOrDefault(AppLanguage.PORTUGUES)
     }
+    val chatWallpaper: Flow<ChatWallpaper> = context.dataStore.data.map {
+        runCatching { ChatWallpaper.valueOf(it[Keys.WALLPAPER] ?: "") }.getOrDefault(ChatWallpaper.PADRAO)
+    }
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[Keys.THEME] = mode.name }
@@ -76,6 +81,9 @@ class TokenStore(private val context: Context) {
     }
     suspend fun setLanguage(lang: AppLanguage) {
         context.dataStore.edit { it[Keys.LANG] = lang.name }
+    }
+    suspend fun setChatWallpaper(w: ChatWallpaper) {
+        context.dataStore.edit { it[Keys.WALLPAPER] = w.name }
     }
 
     // clear() remove só a SESSÃO (token + id). Mantém a URL do servidor e as
