@@ -29,9 +29,12 @@ class TokenStore(private val context: Context) {
     val token: Flow<String?> = context.dataStore.data.map { it[Keys.TOKEN] }
     val userId: Flow<Long?> = context.dataStore.data.map { it[Keys.USER_ID] }
     val baseUrl: Flow<String> = context.dataStore.data.map {
-        // Padrão: 10.0.2.2 é como o EMULADOR do Android enxerga o "localhost" do
-        // seu PC. Se rodar em celular físico, troque pela URL do Cloudflare.
-        it[Keys.BASE_URL] ?: "http://10.0.2.2:8080"
+        // Padrão: IP do servidor Go na rede local (Wi-Fi de casa). Se o emulador
+        // e o servidor estivessem na MESMA máquina, usaríamos 10.0.2.2 (é como o
+        // emulador enxerga o "localhost" do PC). Como aqui o servidor roda em
+        // outra máquina (Ubuntu), usamos o IP dela na rede. Se rodar em celular
+        // físico fora de casa, troque pela URL do Cloudflare Tunnel.
+        it[Keys.BASE_URL] ?: "http://192.168.10.148:8080"
     }
 
     suspend fun saveSession(token: String, userId: Long) {
