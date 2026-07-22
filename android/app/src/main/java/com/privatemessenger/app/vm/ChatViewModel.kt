@@ -48,8 +48,13 @@ class ChatViewModel(
         viewModelScope.launch {
             repo.incomingMessages.collect { msg ->
                 val myId = _state.value.myUserId
+                // Cobre os dois sentidos: mensagem que o parceiro me mandou, E
+                // mensagem que EU mandei pro parceiro a partir de OUTRO
+                // aparelho (multi-device: a mesma conta logada em dois
+                // lugares precisa ver a conversa igual nos dois).
                 val belongsHere = msg.groupId == null && (
-                    msg.senderId == partnerId && msg.recipientId == myId
+                    (msg.senderId == partnerId && msg.recipientId == myId) ||
+                    (msg.senderId == myId && msg.recipientId == partnerId)
                 )
                 if (belongsHere) {
                     appendUnique(msg)
