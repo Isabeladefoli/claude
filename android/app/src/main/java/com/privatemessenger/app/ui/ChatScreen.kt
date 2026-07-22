@@ -47,6 +47,11 @@ fun ChatScreen(
     val state by vm.state.collectAsState()
     val listState = rememberLazyListState()
 
+    // Recarrega o histórico toda vez que a conversa é (re)aberta — não confia
+    // só no tempo real, que pode não ter entregado tudo (ex: mensagem mandada
+    // de outro aparelho enquanto esse ficou momentaneamente desconectado).
+    LaunchedEffect(partnerId) { vm.refresh() }
+
     var draft by remember { mutableStateOf("") }
 
     // Sempre que chegar/enviar mensagem, rola pro final da lista.

@@ -31,6 +31,12 @@ class ChatViewModel(
         observeRealtime()
     }
 
+    // Chamado toda vez que a tela de chat é reaberta. Recarrega do zero em
+    // vez de confiar só no tempo real: o WebSocket pode falhar em entregar
+    // pra um aparelho específico (ex: reconexão, app em segundo plano), e
+    // sem isso a conversa ficava "congelada" na última vez que foi carregada.
+    fun refresh() = loadHistory()
+
     private fun loadHistory() {
         viewModelScope.launch {
             try {
