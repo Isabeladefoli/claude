@@ -54,7 +54,8 @@ fun ChatScreen(
         // Cabeçalho: voltar + nome da pessoa.
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("< Voltar") }
-            Text(partnerUsername, modifier = Modifier.padding(start = 8.dp))
+            val headerLabel = if (partnerId == state.myUserId) "$partnerUsername (eu)" else partnerUsername
+            Text(headerLabel, modifier = Modifier.padding(start = 8.dp))
         }
 
         if (state.error != null) {

@@ -100,7 +100,12 @@ fun ConversationsScreen(
                             .clickable { onOpenChat(conv.partnerId, conv.partnerUsername) }
                             .padding(vertical = 12.dp),
                     ) {
-                        Text(conv.partnerUsername)
+                        val label = if (conv.partnerId == state.myUserId) {
+                            "${conv.partnerUsername} (eu)"
+                        } else {
+                            conv.partnerUsername
+                        }
+                        Text(label)
                         // Prévia da última mensagem (por enquanto texto puro).
                         Text(conv.lastMessage.ciphertext)
                     }

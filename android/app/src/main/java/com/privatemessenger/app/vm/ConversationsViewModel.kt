@@ -14,6 +14,7 @@ data class ConversationsUiState(
     val loading: Boolean = false,
     val conversations: List<ConversationSummary> = emptyList(),
     val error: String? = null,
+    val myUserId: Long = -1,
 )
 
 class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel() {
@@ -31,8 +32,9 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             try {
+                val myId = repo.currentUserId() ?: -1
                 val list = repo.listConversations()
-                _state.value = ConversationsUiState(conversations = list)
+                _state.value = ConversationsUiState(conversations = list, myUserId = myId)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(loading = false, error = e.message)
             }

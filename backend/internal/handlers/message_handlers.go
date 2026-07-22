@@ -47,11 +47,6 @@ func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "faltam campos: recipient_id, ciphertext, nonce")
 		return
 	}
-	if req.RecipientID == senderID {
-		writeError(w, http.StatusBadRequest, "não dá pra mandar mensagem pra si mesmo")
-		return
-	}
-
 	// Confere que o destinatário existe de verdade.
 	var exists int
 	h.DB.QueryRow(`SELECT 1 FROM users WHERE id = ?`, req.RecipientID).Scan(&exists)
