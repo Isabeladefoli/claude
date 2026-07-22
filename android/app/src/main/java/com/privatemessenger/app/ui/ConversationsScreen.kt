@@ -57,7 +57,7 @@ fun ConversationsScreen(
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
         Row(modifier = Modifier.fillMaxWidth()) {
-            Text("Conversas", modifier = Modifier.padding(bottom = 8.dp))
+            Text("Conversas  (build ${com.privatemessenger.app.BUILD_TAG})", modifier = Modifier.padding(bottom = 8.dp))
         }
 
         if (state.myUsername.isNotEmpty()) {

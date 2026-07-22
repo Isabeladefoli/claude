@@ -23,7 +23,9 @@ data class ConversationsUiState(
 
 class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel() {
 
-    private val _state = MutableStateFlow(ConversationsUiState())
+    // Começa em "loading" pra não piscar "Nenhuma conversa" antes da primeira
+    // carga terminar (isso assustava: parecia que as conversas tinham sumido).
+    private val _state = MutableStateFlow(ConversationsUiState(loading = true))
     val state: StateFlow<ConversationsUiState> = _state.asStateFlow()
 
     init {
