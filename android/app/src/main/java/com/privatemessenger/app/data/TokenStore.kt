@@ -42,7 +42,7 @@ class TokenStore(private val context: Context) {
         // emulador enxerga o "localhost" do PC). Como aqui o servidor roda em
         // outra máquina (Ubuntu), usamos o IP dela na rede. Se rodar em celular
         // físico fora de casa, troque pela URL do Cloudflare Tunnel.
-        it[Keys.BASE_URL] ?: "http://192.168.10.148:8080"
+        it[Keys.BASE_URL] ?: "http://192.168.1.225:8080"
     }
 
     suspend fun saveSession(token: String, userId: Long) {

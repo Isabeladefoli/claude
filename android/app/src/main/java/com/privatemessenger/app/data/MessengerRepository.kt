@@ -118,6 +118,9 @@ class MessengerRepository(context: Context) {
 
     suspend fun setBaseUrl(url: String) = tokenStore.setBaseUrl(url)
 
+    // Lê a URL do servidor uma vez (pra preencher o campo na tela de login).
+    suspend fun currentBaseUrl(): String = tokenStore.currentBaseUrl()
+
     // --- Conversas e mensagens ---
 
     suspend fun listConversations(): List<ConversationSummary> = api.listConversations()
