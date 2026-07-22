@@ -45,16 +45,18 @@ type Client struct {
 	hub    *Hub
 }
 
-// Hub mantém o mapa de todos os clientes online.
+// Hub mantém o mapa de todos os clientes online. Um usuário pode ter MAIS DE
+// UMA conexão ao mesmo tempo (ex: celular + emulador, ou dois aparelhos com a
+// mesma conta) — por isso o valor é um conjunto de conexões, não uma só.
 type Hub struct {
 	mu      sync.RWMutex
-	clients map[int64]*Client // userID -> conexão dele
+	clients map[int64]map[*Client]struct{} // userID -> conjunto de conexões dele
 	tokens  *auth.TokenManager
 }
 
 func NewHub(tokens *auth.TokenManager) *Hub {
 	return &Hub{
-		clients: make(map[int64]*Client),
+		clients: make(map[int64]map[*Client]struct{}),
 		tokens:  tokens,
 	}
 }
@@ -63,52 +65,65 @@ func NewHub(tokens *auth.TokenManager) *Hub {
 func (h *Hub) register(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	// Se o mesmo usuário já tinha uma conexão (ex: abriu em dois lugares),
-	// fechamos a antiga pra manter só a mais nova.
-	if old, ok := h.clients[c.userID]; ok {
-		close(old.send)
+	set, ok := h.clients[c.userID]
+	if !ok {
+		set = make(map[*Client]struct{})
+		h.clients[c.userID] = set
 	}
-	h.clients[c.userID] = c
-	log.Printf("usuário %d conectou (online agora: %d)", c.userID, len(h.clients))
+	set[c] = struct{}{}
+	log.Printf("usuário %d conectou (%d conexão(ões) dele)", c.userID, len(set))
 }
 
 func (h *Hub) unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if cur, ok := h.clients[c.userID]; ok && cur == c {
-		delete(h.clients, c.userID)
-		close(c.send)
-		log.Printf("usuário %d desconectou (online agora: %d)", c.userID, len(h.clients))
+	set, ok := h.clients[c.userID]
+	if !ok {
+		return
 	}
+	if _, present := set[c]; !present {
+		return
+	}
+	delete(set, c)
+	close(c.send)
+	if len(set) == 0 {
+		delete(h.clients, c.userID)
+	}
+	log.Printf("usuário %d desconectou (%d conexão(ões) restante(s))", c.userID, len(set))
 }
 
-// SendToUser entrega um pacote (bytes JSON) para um usuário SE ele estiver
-// online. Retorna true se conseguiu entregar na hora. Se estiver offline,
-// retorna false — a mensagem já foi salva no banco e ele pega o histórico
-// quando conectar.
+// SendToUser entrega um pacote (bytes JSON) para TODAS as conexões abertas de
+// um usuário (pode estar logado em vários aparelhos). Retorna true se
+// conseguiu entregar em pelo menos uma. Se estiver offline em todas, retorna
+// false — a mensagem já foi salva no banco e ele pega o histórico quando
+// conectar.
 func (h *Hub) SendToUser(userID int64, payload []byte) bool {
 	h.mu.RLock()
-	c, ok := h.clients[userID]
+	set := h.clients[userID]
+	conns := make([]*Client, 0, len(set))
+	for c := range set {
+		conns = append(conns, c)
+	}
 	h.mu.RUnlock()
-	if !ok {
-		return false
+
+	delivered := false
+	for _, c := range conns {
+		// Envio não-bloqueante: se a fila de algum cliente estiver cheia
+		// (conexão lenta), não travamos o servidor inteiro por causa dele.
+		select {
+		case c.send <- payload:
+			delivered = true
+		default:
+		}
 	}
-	// Envio não-bloqueante: se a fila do cliente estiver cheia (conexão lenta),
-	// não travamos o servidor inteiro por causa dele.
-	select {
-	case c.send <- payload:
-		return true
-	default:
-		return false
-	}
+	return delivered
 }
 
-// IsOnline diz se um usuário está conectado agora.
+// IsOnline diz se um usuário está conectado agora (em pelo menos um aparelho).
 func (h *Hub) IsOnline(userID int64) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	_, ok := h.clients[userID]
-	return ok
+	return len(h.clients[userID]) > 0
 }
 
 // ServeWS é o handler da rota do WebSocket. Autentica pelo token e sobe a conexão.
