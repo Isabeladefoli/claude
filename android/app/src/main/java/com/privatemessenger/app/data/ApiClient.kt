@@ -124,6 +124,42 @@ class ApiClient(private val tokenStore: TokenStore) {
         return resp.body<MessagesResponse>().messages.reversed()
     }
 
+    // --- Contatos e lista de chats ---
+
+    suspend fun listChats(): List<ChatItem> {
+        val resp = http.get(url("/api/chats")) {
+            header("Authorization", authHeader())
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+        return resp.body<ChatsResponse>().chats
+    }
+
+    suspend fun addContact(username: String): PublicUser {
+        val resp = http.post(url("/api/contacts")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(AddContactRequest(username))
+        }
+        if (resp.status != HttpStatusCode.Created) fail(resp)
+        return resp.body()
+    }
+
+    // "Apaga" o chat da lista Todos (continua em Salvos e na busca).
+    suspend fun hideChat(otherId: Long) {
+        val resp = http.post(url("/api/chats/$otherId/hide")) {
+            header("Authorization", authHeader())
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    // Desfaz o hide (reverter).
+    suspend fun unhideChat(otherId: Long) {
+        val resp = http.post(url("/api/chats/$otherId/unhide")) {
+            header("Authorization", authHeader())
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
     suspend fun sendMessage(recipientId: Long, ciphertext: String, nonce: String): Message {
         val resp = http.post(url("/api/messages")) {
             header("Authorization", authHeader())

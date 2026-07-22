@@ -83,6 +83,37 @@ data class MessagesResponse(
     val messages: List<Message>,
 )
 
+// --- Contatos e lista de chats (todos/salvos/não salvos) ---
+
+// Cartão público de um usuário (o que aparece numa linha de chat).
+@Serializable
+data class PublicUser(
+    val id: Long,
+    val username: String,
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+)
+
+// Uma linha da lista de chats, com os marcadores que decidem em qual filtro
+// ela aparece.
+@Serializable
+data class ChatItem(
+    val user: PublicUser,
+    val saved: Boolean = false,
+    val hidden: Boolean = false,
+    @SerialName("has_messages") val hasMessages: Boolean = false,
+    @SerialName("last_message") val lastMessage: Message? = null,
+)
+
+@Serializable
+data class ChatsResponse(
+    val chats: List<ChatItem>,
+)
+
+@Serializable
+data class AddContactRequest(
+    val username: String,
+)
+
 @Serializable
 data class ErrorResponse(
     val error: String,

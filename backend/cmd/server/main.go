@@ -64,6 +64,12 @@ func main() {
 	mux.Handle("GET /api/conversations", protected(h.ListConversations))
 	mux.Handle("GET /api/conversations/{otherID}", protected(h.GetConversation))
 
+	// Contatos e lista unificada de chats (todos/salvos/não salvos)
+	mux.Handle("GET /api/chats", protected(h.ListChats))
+	mux.Handle("POST /api/contacts", protected(h.AddContact))
+	mux.Handle("POST /api/chats/{otherID}/hide", protected(h.HideChat))
+	mux.Handle("POST /api/chats/{otherID}/unhide", protected(h.UnhideChat))
+
 	// Grupos
 	mux.Handle("POST /api/groups", protected(h.CreateGroup))
 	mux.Handle("GET /api/groups", protected(h.ListMyGroups))

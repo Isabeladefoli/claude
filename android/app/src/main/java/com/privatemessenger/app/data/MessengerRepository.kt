@@ -66,6 +66,16 @@ class MessengerRepository(context: Context) {
 
     suspend fun findUser(username: String): User = api.findUser(username)
 
+    // --- Contatos e chats (todos/salvos/não salvos) ---
+
+    suspend fun listChats(): List<ChatItem> = api.listChats()
+
+    suspend fun addContact(username: String): PublicUser = api.addContact(username)
+
+    suspend fun hideChat(otherId: Long) = api.hideChat(otherId)
+
+    suspend fun unhideChat(otherId: Long) = api.unhideChat(otherId)
+
     // Envia uma mensagem 1-a-1.
     //
     // >>> É AQUI que a criptografia E2E vai entrar no próximo passo. <<<

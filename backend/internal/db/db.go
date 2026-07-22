@@ -91,6 +91,20 @@ func migrate(db *sql.DB) error {
 	-- Índices deixam as buscas de histórico rápidas.
 	CREATE INDEX IF NOT EXISTS idx_messages_dm    ON messages(sender_id, recipient_id, created_at);
 	CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id, created_at);
+
+	-- Contatos: a relação de UM usuário (owner) com OUTRO (contact).
+	--   saved  = 1  -> foi salvo/adicionado de propósito (aparece em "Salvos")
+	--   hidden = 1  -> foi apagado da lista "Todos" (pra deixar limpo), mas
+	--                  continua existindo (ainda achável na busca e em "Salvos")
+	-- Uma linha por par (owner, contact).
+	CREATE TABLE IF NOT EXISTS contacts (
+		owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		contact_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		saved      INTEGER NOT NULL DEFAULT 0,
+		hidden     INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (owner_id, contact_id)
+	);
 	`
 
 	_, err := db.Exec(schema)
