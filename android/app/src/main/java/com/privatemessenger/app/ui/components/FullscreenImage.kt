@@ -19,7 +19,7 @@ import androidx.compose.ui.window.DialogProperties
 // foto de perfil no zap). Toca em qualquer lugar pra fechar.
 @Composable
 fun FullscreenImage(url: String?, onDismiss: () -> Unit) {
-    val photo = rememberNetworkImage(url)
+    val photo = rememberNetworkImage(url, maxPx = 1600)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),

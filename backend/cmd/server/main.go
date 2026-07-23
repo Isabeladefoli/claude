@@ -76,6 +76,7 @@ func main() {
 
 	// Mensagens e conversas 1-a-1
 	mux.Handle("POST /api/messages", protected(h.SendMessage))
+	mux.Handle("POST /api/messages/{id}/edit", protected(h.EditMessage))
 	mux.Handle("DELETE /api/messages/{id}", protected(h.DeleteMessage))
 	mux.Handle("GET /api/conversations", protected(h.ListConversations))
 	mux.Handle("GET /api/conversations/{otherID}", protected(h.GetConversation))

@@ -72,7 +72,10 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
         }
         val q = s.query.trim()
         return if (q.isBlank()) {
-            if (s.filter == ChatFilter.SALVOS) base else base.filter { !it.hidden }
+            // "Apagar de Todos" (hidden) só esconde do filtro TODOS. Em Salvos e
+            // em Não salvos o chat continua aparecendo, pra você reencontrar e
+            // "Colocar em Todos" de novo.
+            if (s.filter == ChatFilter.TODOS) base.filter { !it.hidden } else base
         } else {
             base.filter { it.user.username.contains(q, ignoreCase = true) }
         }
@@ -104,6 +107,18 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
                     lastHiddenId = chat.user.id,
                     lastHiddenName = chat.user.username,
                 )
+                refresh()
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    // Coloca um chat de volta em "Todos" (desfaz o hidden de um chat específico).
+    fun unhide(chat: ChatItem) {
+        viewModelScope.launch {
+            try {
+                repo.unhideChat(chat.user.id)
                 refresh()
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)

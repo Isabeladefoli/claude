@@ -75,7 +75,7 @@ val LocalBaseUrl = staticCompositionLocalOf { "" }
 fun Avatar(seed: String?, size: Dp, avatarPath: String? = null, onClick: (() -> Unit)? = null) {
     val base = LocalBaseUrl.current
     val fullUrl = avatarPath?.takeIf { it.isNotBlank() }?.let { base.trimEnd('/') + it }
-    val photo = rememberNetworkImage(fullUrl)
+    val photo = rememberNetworkImage(fullUrl, maxPx = 256) // avatar é pequeno
 
     Box(
         modifier = Modifier

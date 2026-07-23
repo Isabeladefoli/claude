@@ -86,6 +86,8 @@ fun ChatScreen(
     var draft by remember { mutableStateOf("") }
     var attachMenu by remember { mutableStateOf(false) }
     var expandUrl by remember { mutableStateOf<String?>(null) }
+    // Se != null, estamos EDITANDO a mensagem com esse id (o campo vira "editar").
+    var editingId by remember { mutableStateOf<Long?>(null) }
 
     // Estado da gravação de áudio.
     val recorder = remember { com.privatemessenger.app.ui.components.AudioRecorder(context) }
@@ -165,6 +167,7 @@ fun ChatScreen(
                     text = vm.displayText(msg),
                     mine = mine,
                     onDelete = { vm.deleteMessage(msg) },
+                    onEdit = { editingId = msg.id; draft = vm.displayText(msg) },
                     onExpandImage = { url -> expandUrl = url },
                 )
             }
@@ -184,50 +187,68 @@ fun ChatScreen(
                 },
             )
         } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Botão de anexar (+) com menu Foto/Áudio.
-                Box {
-                    RoundButton("+", MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.colorScheme.onSurface) { attachMenu = true }
-                    DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Foto") },
-                            onClick = {
-                                attachMenu = false
-                                pickPhoto.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                                )
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Áudio") },
-                            onClick = {
-                                attachMenu = false
-                                askMic.launch(android.Manifest.permission.RECORD_AUDIO)
-                            },
-                        )
+            Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+                // Faixa de "editando" (some ao cancelar ou confirmar a edição).
+                if (editingId != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Editando mensagem", color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = { editingId = null; draft = "" }) { Text("Cancelar") }
                     }
                 }
-                Spacer(Modifier.width(8.dp))
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    placeholder = { Text("Mensagem") },
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                RoundButton(">", MaterialTheme.colorScheme.primary,
-                    MaterialTheme.colorScheme.onPrimary) {
-                    if (draft.isNotBlank()) {
-                        vm.send(draft)
-                        draft = ""
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Botão de anexar (+) com menu Foto/Áudio (escondido ao editar).
+                    if (editingId == null) {
+                        Box {
+                            RoundButton("+", MaterialTheme.colorScheme.surfaceVariant,
+                                MaterialTheme.colorScheme.onSurface) { attachMenu = true }
+                            DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Foto") },
+                                    onClick = {
+                                        attachMenu = false
+                                        pickPhoto.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                        )
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Áudio") },
+                                    onClick = {
+                                        attachMenu = false
+                                        askMic.launch(android.Manifest.permission.RECORD_AUDIO)
+                                    },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        placeholder = { Text("Mensagem") },
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    RoundButton(">", MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.onPrimary) {
+                        if (draft.isNotBlank()) {
+                            val eid = editingId
+                            if (eid != null) {
+                                vm.editMessage(eid, draft)
+                                editingId = null
+                            } else {
+                                vm.send(draft)
+                            }
+                            draft = ""
+                        }
                     }
                 }
             }
@@ -278,6 +299,7 @@ private fun MessageBubble(
     text: String,
     mine: Boolean,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     onExpandImage: (String) -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -312,7 +334,7 @@ private fun MessageBubble(
                 when {
                     media != null && media.first == MediaMessage.IMAGE -> {
                         val url = base.trimEnd('/') + media.second
-                        val photo = rememberNetworkImage(url)
+                        val photo = rememberNetworkImage(url, maxPx = 1080)
                         if (photo != null) {
                             Image(
                                 bitmap = photo,
@@ -346,6 +368,13 @@ private fun MessageBubble(
                             clipboard.setText(AnnotatedString(text))
                             menuOpen = false
                         },
+                    )
+                }
+                // Editar só as minhas mensagens de texto.
+                if (mine && media == null) {
+                    DropdownMenuItem(
+                        text = { Text("Editar") },
+                        onClick = { menuOpen = false; onEdit() },
                     )
                 }
                 // Apagar só as minhas mensagens.

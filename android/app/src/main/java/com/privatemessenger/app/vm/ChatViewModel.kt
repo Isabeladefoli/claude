@@ -136,6 +136,24 @@ class ChatViewModel(
         }
     }
 
+    // Edita o texto de uma mensagem minha. Atualiza a tela na hora.
+    fun editMessage(id: Long, text: String) {
+        val t = text.trim()
+        if (t.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                repo.editMessage(id, t)
+                _state.value = _state.value.copy(
+                    messages = _state.value.messages.map {
+                        if (it.id == id) it.copy(ciphertext = t) else it
+                    },
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
     // Apaga uma mensagem minha (some pra todo mundo). Já tira da tela na hora.
     fun deleteMessage(msg: Message) {
         viewModelScope.launch {

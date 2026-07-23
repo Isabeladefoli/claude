@@ -257,4 +257,13 @@ class ApiClient(private val tokenStore: TokenStore) {
         }
         if (resp.status != HttpStatusCode.OK) fail(resp)
     }
+
+    suspend fun editMessage(id: Long, ciphertext: String, nonce: String) {
+        val resp = http.post(url("/api/messages/$id/edit")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(EditMessageRequest(ciphertext, nonce))
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
 }

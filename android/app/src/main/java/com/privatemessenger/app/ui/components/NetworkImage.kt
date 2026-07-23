@@ -1,5 +1,6 @@
 package com.privatemessenger.app.ui.components
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.runtime.Composable
@@ -16,32 +17,49 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 // ---------------------------------------------------------------------------
-// Carregador de imagem simples, SEM biblioteca externa (pra não depender de
-// baixar nada novo no Gradle). Baixa os bytes da URL numa thread de fundo e
-// decodifica pra uma imagem que o Compose sabe desenhar.
+// Carregador de imagem simples, SEM biblioteca externa.
 //
-// Cache em memória: guardamos as fotos já baixadas por URL. Assim, quando você
-// sai de uma tela e volta (ex: entra nas configurações e volta pros chats), a
-// foto aparece NA HORA, sem baixar de novo — antes ela "sumia" por 1-2s porque
-// recarregava toda vez.
+// DUAS coisas importantes pra performance (senão o app trava):
+//  1) REDUZIR A RESOLUÇÃO ao decodificar. Uma foto de celular tem milhões de
+//     pixels; mostrada num avatar de 44dp, não precisa de tudo isso. Carregar
+//     em resolução cheia estoura a memória (foi o que deixou o app a 4fps).
+//     Por isso passamos "maxPx": o maior lado da imagem decodificada.
+//  2) CACHE LIMITADO POR MEMÓRIA (bytes), não por quantidade. Assim guardamos
+//     muitas imagens pequenas OU poucas grandes, sem nunca passar do teto.
 // ---------------------------------------------------------------------------
 
-// Guarda até ~100 imagens. Suficiente pra lista de conversas + perfis + fotos
-// no chat, sem a foto "sumir" quando você navega bastante pelo app.
-private val imageCache = LruCache<String, ImageBitmap>(100)
+// Teto de ~24 MB de imagens em memória. sizeOf mede cada imagem (w*h*4 bytes).
+private val imageCache = object : LruCache<String, ImageBitmap>(24 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
+}
+
+// Decodifica os bytes JÁ reduzindo pra no máximo ~maxPx no maior lado.
+private fun decodeSampled(bytes: ByteArray, maxPx: Int): Bitmap? {
+    // 1ª passada: só mede o tamanho, sem carregar os pixels.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val larger = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+
+    // Descobre o fator de redução (potência de 2) pra caber em maxPx.
+    var sample = 1
+    while (larger / sample > maxPx) sample *= 2
+
+    // 2ª passada: carrega já reduzida.
+    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+}
 
 @Composable
-fun rememberNetworkImage(url: String?): ImageBitmap? {
-    // Começa já com a versão do cache (se houver) — é isso que mata o flicker.
-    var bitmap by remember(url) { mutableStateOf(url?.let { imageCache.get(it) }) }
+fun rememberNetworkImage(url: String?, maxPx: Int = 512): ImageBitmap? {
+    val key = if (url == null) null else "$url@$maxPx"
+    var bitmap by remember(key) { mutableStateOf(key?.let { imageCache.get(it) }) }
 
-    LaunchedEffect(url) {
-        if (url.isNullOrBlank()) {
+    LaunchedEffect(key) {
+        if (key == null || url == null) {
             bitmap = null
             return@LaunchedEffect
         }
-        // Já está no cache? Usa e pronto (não baixa de novo).
-        val cached = imageCache.get(url)
+        val cached = imageCache.get(key)
         if (cached != null) {
             bitmap = cached
             return@LaunchedEffect
@@ -54,13 +72,13 @@ fun rememberNetworkImage(url: String?): ImageBitmap? {
                 }
                 conn.inputStream.use { input ->
                     val bytes = input.readBytes()
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                    decodeSampled(bytes, maxPx)?.asImageBitmap()
                 }
             } catch (_: Exception) {
-                null // falhou (rede/foto) -> quem chama mostra a inicial
+                null
             }
         }
-        if (loaded != null) imageCache.put(url, loaded)
+        if (loaded != null) imageCache.put(key, loaded)
         bitmap = loaded
     }
     return bitmap

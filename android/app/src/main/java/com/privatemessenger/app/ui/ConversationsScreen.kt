@@ -151,6 +151,7 @@ fun ConversationsScreen(
                             onOpen = { onOpenChat(chat.user.id, chat.user.username) },
                             onOpenProfile = { onOpenProfile(chat.user.username) },
                             onHide = { vm.hideChat(chat) },
+                            onUnhide = { vm.unhide(chat) },
                         )
                         HorizontalDivider()
                     }
@@ -194,6 +195,7 @@ private fun ChatRow(
     onOpen: () -> Unit,
     onOpenProfile: () -> Unit,
     onHide: () -> Unit,
+    onUnhide: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -240,10 +242,17 @@ private fun ChatRow(
         }
 
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text("Apagar de “Todos”") },
-                onClick = { menuOpen = false; onHide() },
-            )
+            if (chat.hidden) {
+                DropdownMenuItem(
+                    text = { Text("Colocar em “Todos”") },
+                    onClick = { menuOpen = false; onUnhide() },
+                )
+            } else {
+                DropdownMenuItem(
+                    text = { Text("Apagar de “Todos”") },
+                    onClick = { menuOpen = false; onHide() },
+                )
+            }
         }
     }
 }

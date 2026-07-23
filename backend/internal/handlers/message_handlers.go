@@ -150,6 +150,42 @@ func (h *Handlers) GetConversation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// editMessageRequest: o novo conteúdo (já criptografado) da mensagem.
+type editMessageRequest struct {
+	Ciphertext string `json:"ciphertext"`
+	Nonce      string `json:"nonce"`
+}
+
+// EditMessage edita o conteúdo de uma mensagem. Só o REMETENTE pode editar.
+func (h *Handlers) EditMessage(w http.ResponseWriter, r *http.Request) {
+	userID, _ := auth.UserIDFromContext(r.Context())
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	var req editMessageRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.Ciphertext == "" {
+		writeError(w, http.StatusBadRequest, "conteúdo vazio")
+		return
+	}
+	res, err := h.DB.Exec(
+		`UPDATE messages SET ciphertext = ?, nonce = ? WHERE id = ? AND sender_id = ?`,
+		req.Ciphertext, req.Nonce, id, userID,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "erro ao editar mensagem")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusForbidden, "você só pode editar as suas mensagens")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // DeleteMessage apaga uma mensagem. Só o REMETENTE pode apagar a própria
 // mensagem (você não pode apagar a mensagem que a outra pessoa te mandou).
 func (h *Handlers) DeleteMessage(w http.ResponseWriter, r *http.Request) {

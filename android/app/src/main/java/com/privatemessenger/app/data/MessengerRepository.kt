@@ -160,6 +160,9 @@ class MessengerRepository(context: Context) {
     // Apaga uma mensagem (só a própria, o servidor confere).
     suspend fun deleteMessage(id: Long) = api.deleteMessage(id)
 
+    // Edita o texto de uma mensagem (só a própria).
+    suspend fun editMessage(id: Long, text: String) = api.editMessage(id, text, "plaintext")
+
     // Sobe um arquivo e manda como mensagem de mídia (foto/áudio) para a conversa.
     suspend fun sendMediaMessage(
         recipientId: Long,

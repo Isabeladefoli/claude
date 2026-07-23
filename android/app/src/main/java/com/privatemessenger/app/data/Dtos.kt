@@ -70,6 +70,12 @@ data class SendMessageRequest(
 )
 
 @Serializable
+data class EditMessageRequest(
+    val ciphertext: String,
+    val nonce: String,
+)
+
+@Serializable
 data class ConversationSummary(
     @SerialName("partner_id") val partnerId: Long,
     @SerialName("partner_username") val partnerUsername: String,
