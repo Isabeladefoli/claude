@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/isabeladefoli/private-messenger/backend/internal/auth"
+	"github.com/isabeladefoli/private-messenger/backend/internal/mail"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ws"
 )
 
@@ -22,6 +23,9 @@ type Handlers struct {
 	// Pasta onde os arquivos de mídia são gravados. Preenchida pelo main após
 	// o New (mantém a assinatura de New simples e não quebra os testes).
 	MediaDir string
+
+	// Envio de e-mail (denúncias/reports). Se não configurado, fica inativo.
+	Mailer mail.Mailer
 }
 
 func New(db *sql.DB, tokens *auth.TokenManager, hub *ws.Hub) *Handlers {

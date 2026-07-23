@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -59,5 +61,17 @@ func (h *Handlers) CreateSupportReport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "erro ao enviar report")
 		return
 	}
+
+	// Manda por e-mail (se configurado). Reply-To é o e-mail que a pessoa deixou,
+	// então dá pra responder direto pra ela.
+	go func() {
+		subject := "Novo report de suporte: " + req.Title
+		body := fmt.Sprintf("Report de suporte.\n\nDe: %s\nTítulo: %s\n\n%s\n",
+			req.ReplyEmail, req.Title, req.Body)
+		if err := h.Mailer.Send(subject, body, req.ReplyEmail); err != nil {
+			log.Printf("falha ao enviar e-mail de suporte: %v", err)
+		}
+	}()
+
 	writeJSON(w, http.StatusCreated, map[string]bool{"ok": true})
 }

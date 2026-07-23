@@ -26,6 +26,15 @@ type Config struct {
 	// isso, consegue forjar login de qualquer usuário — então é CRÍTICO que
 	// seja aleatório e secreto em produção.
 	JWTSecret []byte
+
+	// SMTP: pra enviar reports/denúncias por e-mail. Se User/Pass não forem
+	// definidos, o envio fica DESLIGADO (os reports só ficam salvos no banco).
+	// Use uma "senha de app" do Gmail, nunca a senha normal da conta.
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUser     string
+	SMTPPass     string
+	SupportEmail string // pra onde as denúncias/reports são enviados
 }
 
 // getEnv retorna a variável de ambiente ou um valor padrão se ela não existir.
@@ -39,9 +48,14 @@ func getEnv(key, fallback string) string {
 // Load monta a configuração lendo o ambiente.
 func Load() *Config {
 	cfg := &Config{
-		Addr:     getEnv("MSG_ADDR", ":8080"),
-		DBPath:   getEnv("MSG_DB_PATH", "data/messenger.db"),
-		MediaDir: getEnv("MSG_MEDIA_DIR", "data/media"),
+		Addr:         getEnv("MSG_ADDR", ":8080"),
+		DBPath:       getEnv("MSG_DB_PATH", "data/messenger.db"),
+		MediaDir:     getEnv("MSG_MEDIA_DIR", "data/media"),
+		SMTPHost:     getEnv("MSG_SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:     getEnv("MSG_SMTP_PORT", "587"),
+		SMTPUser:     getEnv("MSG_SMTP_USER", ""),
+		SMTPPass:     getEnv("MSG_SMTP_PASS", ""),
+		SupportEmail: getEnv("MSG_SUPPORT_EMAIL", "isabeladefoli@gmail.com"),
 	}
 
 	// A chave JWT: se você definir MSG_JWT_SECRET no ambiente, usamos ela.

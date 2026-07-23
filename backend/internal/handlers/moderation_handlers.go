@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -95,6 +97,17 @@ func (h *Handlers) ReportUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "erro ao enviar denúncia")
 		return
 	}
+
+	// Manda por e-mail (se configurado). Em background pra não segurar a resposta.
+	go func() {
+		subject := "Nova denúncia no app"
+		body := fmt.Sprintf("Denúncia recebida.\n\nDe (id): %d\nContra (id): %d\n\nMotivo:\n%s\n",
+			me, otherID, reason)
+		if err := h.Mailer.Send(subject, body, ""); err != nil {
+			log.Printf("falha ao enviar e-mail de denúncia: %v", err)
+		}
+	}()
+
 	writeJSON(w, http.StatusCreated, map[string]bool{"ok": true})
 }
 

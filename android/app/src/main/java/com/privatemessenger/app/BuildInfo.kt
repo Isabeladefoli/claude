@@ -4,4 +4,4 @@ package com.privatemessenger.app
 // confirmar QUAL build está rodando em cada aparelho/emulador — assim não
 // confundimos "bug no código" com "emulador rodando APK antigo". Sempre que
 // mudarmos algo importante, subimos esse número.
-const val BUILD_TAG = "v0.12-naolidas-bloquear"
+const val BUILD_TAG = "v0.13-previa-curta-email"

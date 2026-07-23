@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -220,14 +221,19 @@ private fun ChatRow(
                 onClick = onOpenProfile,
             )
             Spacer(Modifier.width(12.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 val name = buildString {
                     append(chat.user.username)
                     if (isMe) append(" (eu)")
                     if (chat.saved) append("  ★")
                 }
-                Text(name, fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground)
+                Text(
+                    name,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 // Prévia da última mensagem, ou marca de contato salvo sem conversa.
                 // Se a última for mídia, mostramos "Foto"/"Áudio" no lugar do
                 // conteúdo cru.
@@ -239,12 +245,17 @@ private fun ChatRow(
                     }
                 } ?: if (chat.saved) "Contato salvo" else ""
                 if (preview.isNotEmpty()) {
-                    Text(preview, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        preview,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
             // Bolinha de não-lidas (só aparece se houver mensagens novas).
             if (chat.unreadCount > 0) {
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)

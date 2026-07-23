@@ -18,6 +18,7 @@ import (
 	"github.com/isabeladefoli/private-messenger/backend/internal/config"
 	"github.com/isabeladefoli/private-messenger/backend/internal/db"
 	"github.com/isabeladefoli/private-messenger/backend/internal/handlers"
+	"github.com/isabeladefoli/private-messenger/backend/internal/mail"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ratelimit"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ws"
 )
@@ -38,6 +39,15 @@ func main() {
 	hub := ws.NewHub(tokens)
 	h := handlers.New(database, tokens, hub)
 	h.MediaDir = cfg.MediaDir // onde os arquivos de mídia são gravados
+	h.Mailer = mail.Mailer{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort,
+		User: cfg.SMTPUser, Pass: cfg.SMTPPass, To: cfg.SupportEmail,
+	}
+	if h.Mailer.Enabled() {
+		log.Printf("envio de e-mail ATIVO (reports vão para %s)", cfg.SupportEmail)
+	} else {
+		log.Println("envio de e-mail desligado (defina MSG_SMTP_USER/MSG_SMTP_PASS pra ativar)")
+	}
 
 	// 4) Define as rotas. Usamos o roteador padrão do Go 1.22+, que já entende
 	//    métodos (GET/POST) e parâmetros no caminho ({otherID}).
