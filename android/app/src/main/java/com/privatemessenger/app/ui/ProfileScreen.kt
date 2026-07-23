@@ -154,7 +154,7 @@ fun ProfileScreen(
                                 }
                             },
                         ) {
-                            Text(if (isSaved) "Excluir contato" else s.profileAddFriend)
+                            Text(if (isSaved) s.removeContact else s.profileAddFriend)
                         }
                     }
                     Spacer(Modifier.height(16.dp))
@@ -183,9 +183,9 @@ fun ProfileScreen(
                                 contentColor = MaterialTheme.colorScheme.error,
                             ),
                         ) {
-                            Text(if (isBlockedState) "Desbloquear" else "Bloquear")
+                            Text(if (isBlockedState) s.unblock else s.block)
                         }
-                        TextButton(onClick = { showReport = true }) { Text("Reportar") }
+                        TextButton(onClick = { showReport = true }) { Text(s.report) }
                     }
 
                     if (feedback != null) {
@@ -207,7 +207,7 @@ fun ProfileScreen(
                     scope.launch {
                         try {
                             repo.reportUser(u.id, reason)
-                            feedback = "Denúncia enviada."
+                            feedback = s.reportSent
                         } catch (e: Exception) {
                             feedback = e.message
                         }
@@ -227,26 +227,27 @@ fun ProfileScreen(
 
 @Composable
 private fun ReportDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
+    val s = LocalStrings.current
     var reason by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Reportar usuário") },
+        title = { Text(s.reportTitle) },
         text = {
             Column {
-                Text("Conte o que aconteceu. A denúncia vai para o suporte do app.")
+                Text(s.reportHint)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = reason,
                     onValueChange = { reason = it },
-                    label = { Text("Motivo") },
+                    label = { Text(s.reportReason) },
                 )
             }
         },
         confirmButton = {
             TextButton(enabled = reason.isNotBlank(), onClick = { onSend(reason.trim()) }) {
-                Text("Enviar")
+                Text(s.send)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s.cancel) } },
     )
 }

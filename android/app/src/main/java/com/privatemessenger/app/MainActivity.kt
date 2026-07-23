@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
 private fun App(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
     val theme by repo.themeMode.collectAsState(initial = ThemeMode.ESCURO)
     val font by repo.fontSize.collectAsState(initial = FontSize.NORMAL)
-    val language by repo.language.collectAsState(initial = AppLanguage.PORTUGUES)
+    val language by repo.language.collectAsState(initial = AppLanguage.INGLES)
     val baseUrl by repo.baseUrl.collectAsState(initial = "")
 
     AppTheme(themeMode = theme, fontSize = font, language = language) {

@@ -19,8 +19,8 @@ import (
 //   - Cada usuário envia sua CHAVE PÚBLICA no registro (gerada no celular).
 // ---------------------------------------------------------------------------
 
-// usernameRegex: letras, números, ponto, hífen e underline; de 3 a 20 chars.
-var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]{3,20}$`)
+// usernameRegex: letras, números, ponto, hífen e underline; de 3 a 30 chars.
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]{3,30}$`)
 
 // registerRequest é o formato do JSON que o app manda pra criar conta.
 type registerRequest struct {
@@ -50,7 +50,7 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	req.Username = strings.TrimSpace(req.Username)
 	if !usernameRegex.MatchString(req.Username) {
 		writeError(w, http.StatusBadRequest,
-			"nome de usuário deve ter 3-20 caracteres (letras, números, . _ -)")
+			"nome de usuário deve ter 3-30 caracteres (letras, números, . _ -)")
 		return
 	}
 	if len(req.Password) < 8 {

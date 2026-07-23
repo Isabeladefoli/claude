@@ -77,7 +77,7 @@ func (h *Handlers) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		newName := strings.TrimSpace(*req.Username)
 		if !usernameRegex.MatchString(newName) {
 			writeError(w, http.StatusBadRequest,
-				"nome de usuário deve ter 3-20 caracteres (letras, números, . _ -)")
+				"nome de usuário deve ter 3-30 caracteres (letras, números, . _ -)")
 			return
 		}
 		sets = append(sets, "username = ?")

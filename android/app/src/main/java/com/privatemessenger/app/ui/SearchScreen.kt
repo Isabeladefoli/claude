@@ -57,7 +57,7 @@ fun SearchScreen(onBack: () -> Unit, onSearch: (username: String) -> Unit) {
             label = { Text(s.searchHint) },
             singleLine = true,
             trailingIcon = {
-                TextButton(onClick = { go() }) { Text("Buscar") }
+                TextButton(onClick = { go() }) { Text(s.searchHint) }
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { go() }),

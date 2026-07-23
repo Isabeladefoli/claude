@@ -1,6 +1,5 @@
 package com.privatemessenger.app.ui
 
-import android.app.DatePickerDialog
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -51,10 +50,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.privatemessenger.app.data.MessengerRepository
+import com.privatemessenger.app.i18n.LocalStrings
 import com.privatemessenger.app.vm.AuthViewModel
-import java.util.Calendar
 import kotlinx.coroutines.launch
 
 // Tela de login / cadastro, no estilo do mockup: um cartão central com título,
@@ -66,6 +67,7 @@ fun AuthScreen(repo: MessengerRepository) {
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val s = LocalStrings.current
 
     var isRegister by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
@@ -123,8 +125,7 @@ fun AuthScreen(repo: MessengerRepository) {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        if (isRegister) "Guarde seu usuário e senha pra entrar de novo depois."
-                        else "Bem-vinda de volta, entre na sua conta.",
+                        if (isRegister) s.signupSubtitle else s.loginSubtitle,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -160,7 +161,7 @@ fun AuthScreen(repo: MessengerRepository) {
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Escolher foto de perfil",
+                            s.choosePhoto,
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -171,8 +172,8 @@ fun AuthScreen(repo: MessengerRepository) {
                     // Usuário (ícone de pessoa à direita).
                     OutlinedTextField(
                         value = username,
-                        onValueChange = { username = it },
-                        placeholder = { Text("User") },
+                        onValueChange = { if (it.length <= 30) username = it },
+                        placeholder = { Text(s.fieldUsername) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth(),
@@ -184,14 +185,14 @@ fun AuthScreen(repo: MessengerRepository) {
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        placeholder = { Text("Password") },
+                        placeholder = { Text(s.passwordHint) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         visualTransformation = if (showPass) VisualTransformation.None
                         else PasswordVisualTransformation(),
                         trailingIcon = {
                             TextButton(onClick = { showPass = !showPass }) {
-                                Text(if (showPass) "ocultar" else "ver", fontSize = 13.sp)
+                                Text(if (showPass) s.hide else s.show, fontSize = 13.sp)
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -202,33 +203,29 @@ fun AuthScreen(repo: MessengerRepository) {
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
                             value = name,
-                            onValueChange = { name = it },
-                            placeholder = { Text("Name") },
+                            onValueChange = { if (it.length <= 30) name = it },
+                            placeholder = { Text(s.nameHint) },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(10.dp))
-                        // Campo "falso" que abre o seletor de data ao tocar.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-                                .clickable { openDatePicker(context, birthday) { birthday = it } }
-                                .padding(horizontal = 16.dp, vertical = 18.dp),
-                        ) {
-                            Text(
-                                birthday.ifBlank { "Aniversário (toque para escolher)" },
-                                color = if (birthday.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
-                                else MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
+                        // Aniversário escrito à mão: as barras aparecem sozinhas
+                        // conforme você digita os números (dd/mm/aaaa).
+                        OutlinedTextField(
+                            value = birthday,
+                            onValueChange = { birthday = formatBirthday(it) },
+                            placeholder = { Text("${s.fieldBirthday} (dd/mm/aaaa)") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     } else {
                         // "Forgot password?" só no login (por ora, só visual).
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { /* recuperação de senha: futuro */ }) {
-                                Text("Forgot password?", fontSize = 13.sp)
+                                Text(s.forgotPassword, fontSize = 13.sp)
                             }
                         }
                     }
@@ -253,23 +250,20 @@ fun AuthScreen(repo: MessengerRepository) {
                                 color = MaterialTheme.colorScheme.onPrimary,
                             )
                         }
-                        Text(if (isRegister) "Signup" else "Log in")
+                        Text(if (isRegister) s.signupBtn else s.loginBtn)
                     }
 
                     TextButton(onClick = { isRegister = !isRegister; vm.clearError() }) {
-                        Text(
-                            if (isRegister) "Já tenho conta — Entrar"
-                            else "Não tem conta? Cadastre-se",
-                        )
+                        Text(if (isRegister) s.haveAccount else s.noAccount)
                     }
                 }
             }
 
             Spacer(Modifier.height(20.dp))
 
-            // "version 1.0" — tocar aqui revela o campo do servidor (escondido).
+            // Versão — tocar aqui revela o campo do servidor (escondido).
             Text(
-                "version 1.0",
+                s.version,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.clickable { showServer = !showServer },
@@ -280,32 +274,28 @@ fun AuthScreen(repo: MessengerRepository) {
                 OutlinedTextField(
                     value = serverUrl,
                     onValueChange = { serverUrl = it; serverSaved = false },
-                    label = { Text("Endereço do servidor") },
+                    label = { Text(s.serverAddress) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 TextButton(onClick = {
                     scope.launch { repo.setBaseUrl(serverUrl.trim()); serverSaved = true }
                 }) {
-                    Text(if (serverSaved) "Salvo ✓" else "Salvar endereço")
+                    Text(if (serverSaved) s.addressSaved else s.saveAddress)
                 }
             }
         }
     }
 }
 
-// Abre o seletor de data nativo (dia/mês/ano) e devolve "dd/mm/aaaa".
-private fun openDatePicker(
-    context: android.content.Context,
-    current: String,
-    onPicked: (String) -> Unit,
-) {
-    val cal = Calendar.getInstance()
-    DatePickerDialog(
-        context,
-        { _, year, month, day -> onPicked("%02d/%02d/%04d".format(day, month + 1, year)) },
-        cal.get(Calendar.YEAR),
-        cal.get(Calendar.MONTH),
-        cal.get(Calendar.DAY_OF_MONTH),
-    ).show()
+// Formata o aniversário conforme a pessoa digita: só números, com barras
+// automáticas -> "11/10/2008". Máximo 8 dígitos (dd mm aaaa).
+private fun formatBirthday(input: String): String {
+    val digits = input.filter { it.isDigit() }.take(8)
+    val sb = StringBuilder()
+    for (i in digits.indices) {
+        if (i == 2 || i == 4) sb.append('/')
+        sb.append(digits[i])
+    }
+    return sb.toString()
 }

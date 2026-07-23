@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 fun LanguagesScreen(repo: MessengerRepository, onBack: () -> Unit) {
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
-    val current by repo.language.collectAsState(initial = AppLanguage.PORTUGUES)
+    val current by repo.language.collectAsState(initial = AppLanguage.INGLES)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         TopBar(title = s.languages, onBack = onBack)

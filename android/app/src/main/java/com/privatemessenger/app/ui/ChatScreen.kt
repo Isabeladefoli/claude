@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.privatemessenger.app.data.MediaMessage
 import com.privatemessenger.app.data.MessengerRepository
+import com.privatemessenger.app.i18n.LocalStrings
 import com.privatemessenger.app.ui.components.AudioBubble
 import com.privatemessenger.app.ui.components.Avatar
 import com.privatemessenger.app.ui.components.FullscreenImage
@@ -77,6 +78,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val wallpaper by repo.chatWallpaper.collectAsState(initial = ChatWallpaper.PADRAO)
     val context = LocalContext.current
+    val s = LocalStrings.current
 
     DisposableEffect(partnerId) {
         vm.onScreenActive()
@@ -160,7 +162,7 @@ fun ChatScreen(
 
         if (state.error != null) {
             Text(
-                "Erro: ${state.error}",
+                "${s.errorPrefix}: ${state.error}",
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(8.dp),
             )
@@ -205,8 +207,8 @@ fun ChatScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Editando mensagem", color = MaterialTheme.colorScheme.primary)
-                        TextButton(onClick = { editingId = null; draft = "" }) { Text("Cancelar") }
+                        Text(s.editingMessage, color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = { editingId = null; draft = "" }) { Text(s.cancel) }
                     }
                 }
                 Row(
@@ -220,7 +222,7 @@ fun ChatScreen(
                                 MaterialTheme.colorScheme.onSurface) { attachMenu = true }
                             DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Foto") },
+                                    text = { Text(s.photo) },
                                     onClick = {
                                         attachMenu = false
                                         pickPhoto.launch(
@@ -229,7 +231,7 @@ fun ChatScreen(
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Áudio") },
+                                    text = { Text(s.audio) },
                                     onClick = {
                                         attachMenu = false
                                         askMic.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -242,7 +244,7 @@ fun ChatScreen(
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it },
-                        placeholder = { Text("Mensagem") },
+                        placeholder = { Text(s.messageHint) },
                         shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.weight(1f),
                     )
@@ -274,6 +276,7 @@ fun ChatScreen(
 // Barra que aparece durante a gravação de áudio.
 @Composable
 private fun RecordingBar(onSend: () -> Unit, onCancel: () -> Unit) {
+    val s = LocalStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -282,10 +285,10 @@ private fun RecordingBar(onSend: () -> Unit, onCancel: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Gravando áudio...", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+        Text(s.recording, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         Row {
-            TextButton(onClick = onCancel) { Text("Cancelar") }
-            TextButton(onClick = onSend) { Text("Enviar") }
+            TextButton(onClick = onCancel) { Text(s.cancel) }
+            TextButton(onClick = onSend) { Text(s.send) }
         }
     }
 }
@@ -313,6 +316,7 @@ private fun MessageBubble(
     onExpandImage: (String) -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
+    val s = LocalStrings.current
     var menuOpen by remember { mutableStateOf(false) }
 
     val bubbleColor = if (mine) MaterialTheme.colorScheme.primary
@@ -356,7 +360,7 @@ private fun MessageBubble(
                                     .clickable { onExpandImage(url) },
                             )
                         } else {
-                            Text("carregando foto...", color = textColor)
+                            Text(s.loadingPhoto, color = textColor)
                         }
                     }
                     media != null && media.first == MediaMessage.AUDIO -> {
@@ -373,7 +377,7 @@ private fun MessageBubble(
                 // Copiar só faz sentido pra texto.
                 if (media == null) {
                     DropdownMenuItem(
-                        text = { Text("Copiar") },
+                        text = { Text(s.copy) },
                         onClick = {
                             clipboard.setText(AnnotatedString(text))
                             menuOpen = false
@@ -383,14 +387,14 @@ private fun MessageBubble(
                 // Editar só as minhas mensagens de texto.
                 if (mine && media == null) {
                     DropdownMenuItem(
-                        text = { Text("Editar") },
+                        text = { Text(s.edit) },
                         onClick = { menuOpen = false; onEdit() },
                     )
                 }
                 // Apagar só as minhas mensagens.
                 if (mine) {
                     DropdownMenuItem(
-                        text = { Text("Apagar") },
+                        text = { Text(s.delete) },
                         onClick = { menuOpen = false; onDelete() },
                     )
                 }

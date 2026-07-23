@@ -22,6 +22,7 @@ data class ConversationsUiState(
     val error: String? = null,
     val myUserId: Long = -1,
     val myUsername: String = "",
+    val myName: String? = null,
     val myAvatar: String? = null,
     val filter: ChatFilter = ChatFilter.TODOS,
     val query: String = "",
@@ -151,6 +152,7 @@ class ConversationsViewModel(private val repo: MessengerRepository) : ViewModel(
                 val me = repo.me()
                 _state.value = _state.value.copy(
                     myUsername = me.username,
+                    myName = me.name,
                     myUserId = me.id,
                     myAvatar = me.avatarUrl,
                 )

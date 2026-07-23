@@ -67,7 +67,7 @@ class TokenStore(private val context: Context) {
         runCatching { FontSize.valueOf(it[Keys.FONT] ?: "") }.getOrDefault(FontSize.NORMAL)
     }
     val language: Flow<AppLanguage> = context.dataStore.data.map {
-        runCatching { AppLanguage.valueOf(it[Keys.LANG] ?: "") }.getOrDefault(AppLanguage.PORTUGUES)
+        runCatching { AppLanguage.valueOf(it[Keys.LANG] ?: "") }.getOrDefault(AppLanguage.INGLES)
     }
     val chatWallpaper: Flow<ChatWallpaper> = context.dataStore.data.map {
         runCatching { ChatWallpaper.valueOf(it[Keys.WALLPAPER] ?: "") }.getOrDefault(ChatWallpaper.PADRAO)

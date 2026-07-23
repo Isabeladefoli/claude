@@ -205,7 +205,7 @@ private fun AccountDetailsBody(repo: MessengerRepository, onBack: () -> Unit) {
         // Campos editáveis.
         OutlinedTextField(
             value = username,
-            onValueChange = { username = it; feedback = null },
+            onValueChange = { if (it.length <= 30) { username = it; feedback = null } },
             label = { Text(s.fieldUsername) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -213,7 +213,7 @@ private fun AccountDetailsBody(repo: MessengerRepository, onBack: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             value = name,
-            onValueChange = { name = it; feedback = null },
+            onValueChange = { if (it.length <= 30) { name = it; feedback = null } },
             label = { Text(s.fieldName) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),

@@ -46,6 +46,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.privatemessenger.app.data.ChatItem
 import com.privatemessenger.app.data.MediaMessage
 import com.privatemessenger.app.data.MessengerRepository
+import com.privatemessenger.app.i18n.AppStrings
+import com.privatemessenger.app.i18n.LocalStrings
 import com.privatemessenger.app.ui.components.Avatar
 import com.privatemessenger.app.vm.ChatFilter
 import com.privatemessenger.app.vm.ConversationsViewModel
@@ -67,6 +69,7 @@ fun ConversationsScreen(
 ) {
     val vm: ConversationsViewModel = viewModel(factory = conversationsViewModelFactory(repo))
     val state by vm.state.collectAsState()
+    val s = LocalStrings.current
 
     // Poll enquanto a tela está visível (para quando some).
     DisposableEffect(Unit) {
@@ -87,19 +90,29 @@ fun ConversationsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Avatar(seed = state.myUsername, size = 40.dp, avatarPath = state.myAvatar)
                     Spacer(Modifier.width(10.dp))
+                    // Mostra o NOME de exibição (cai no usuário se não tiver),
+                    // cortado em 35 caracteres com "…".
+                    val shown = (state.myName?.takeIf { it.isNotBlank() } ?: state.myUsername)
+                        .ifEmpty { "..." }
+                    val display = if (shown.length > 35) shown.take(34) + "…" else shown
                     Text(
-                        state.myUsername.ifEmpty { "..." },
+                        display,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
                 // Botão de configurações (abre o menu).
                 Text(
-                    "Config",
+                    s.settings,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { onOpenSettings() }.padding(8.dp),
@@ -112,7 +125,7 @@ fun ConversationsScreen(
             OutlinedTextField(
                 value = state.query,
                 onValueChange = { vm.setQuery(it) },
-                label = { Text("Buscar") },
+                label = { Text(s.searchHint) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -122,19 +135,19 @@ fun ConversationsScreen(
             // Botão "Tipos de chat" com as três opções.
             Box {
                 OutlinedButton(onClick = { filterMenuOpen = true }) {
-                    Text("Tipo de chat: ${filterLabel(state.filter)}")
+                    Text("${s.chatType}: ${filterLabel(state.filter, s)}")
                 }
                 DropdownMenu(expanded = filterMenuOpen, onDismissRequest = { filterMenuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("Todos") },
+                        text = { Text(s.filterAll.replaceFirstChar { it.uppercase() }) },
                         onClick = { vm.setFilter(ChatFilter.TODOS); filterMenuOpen = false },
                     )
                     DropdownMenuItem(
-                        text = { Text("Salvos") },
+                        text = { Text(s.filterSaved.replaceFirstChar { it.uppercase() }) },
                         onClick = { vm.setFilter(ChatFilter.SALVOS); filterMenuOpen = false },
                     )
                     DropdownMenuItem(
-                        text = { Text("Não salvos") },
+                        text = { Text(s.filterUnsaved.replaceFirstChar { it.uppercase() }) },
                         onClick = { vm.setFilter(ChatFilter.NAO_SALVOS); filterMenuOpen = false },
                     )
                 }
@@ -144,14 +157,15 @@ fun ConversationsScreen(
 
             // Lista
             when {
-                state.loading -> Text("Carregando...")
-                state.error != null -> Text("Erro: ${state.error}")
-                visible.isEmpty() -> Text(emptyLabel(state.filter, state.query))
+                state.loading -> Text(s.loading)
+                state.error != null -> Text("${s.errorPrefix}: ${state.error}")
+                visible.isEmpty() -> Text(emptyLabel(state.filter, state.query, s))
                 else -> LazyColumn(modifier = Modifier.weight(1f)) {
                     items(visible, key = { it.user.id }) { chat ->
                         ChatRow(
                             chat = chat,
                             isMe = chat.user.id == state.myUserId,
+                            s = s,
                             onOpen = { onOpenChat(chat.user.id, chat.user.username) },
                             onOpenProfile = { onOpenProfile(chat.user.username) },
                             onHide = { vm.hideChat(chat) },
@@ -170,9 +184,9 @@ fun ConversationsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("“${state.lastHiddenName}” apagado de Todos")
+                        Text("\"${state.lastHiddenName}\"")
                         Row {
-                            TextButton(onClick = { vm.undoHide() }) { Text("Reverter") }
+                            TextButton(onClick = { vm.undoHide() }) { Text(s.putInAll) }
                             TextButton(onClick = { vm.dismissUndo() }) { Text("OK") }
                         }
                     }
@@ -196,6 +210,7 @@ fun ConversationsScreen(
 private fun ChatRow(
     chat: ChatItem,
     isMe: Boolean,
+    s: AppStrings,
     onOpen: () -> Unit,
     onOpenProfile: () -> Unit,
     onHide: () -> Unit,
@@ -224,7 +239,7 @@ private fun ChatRow(
             Column(modifier = Modifier.weight(1f)) {
                 val name = buildString {
                     append(chat.user.username)
-                    if (isMe) append(" (eu)")
+                    if (isMe) append(" (me)")
                     if (chat.saved) append("  ★")
                 }
                 Text(
@@ -239,11 +254,11 @@ private fun ChatRow(
                 // conteúdo cru.
                 val preview = chat.lastMessage?.let { m ->
                     when (MediaMessage.parse(m.ciphertext)?.first) {
-                        MediaMessage.IMAGE -> "Foto"
-                        MediaMessage.AUDIO -> "Áudio"
+                        MediaMessage.IMAGE -> s.photo
+                        MediaMessage.AUDIO -> s.audio
                         else -> m.ciphertext
                     }
-                } ?: if (chat.saved) "Contato salvo" else ""
+                } ?: if (chat.saved) s.savedContact else ""
                 if (preview.isNotEmpty()) {
                     Text(
                         preview,
@@ -276,12 +291,12 @@ private fun ChatRow(
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             if (chat.hidden) {
                 DropdownMenuItem(
-                    text = { Text("Colocar em “Todos”") },
+                    text = { Text(s.putInAll) },
                     onClick = { menuOpen = false; onUnhide() },
                 )
             } else {
                 DropdownMenuItem(
-                    text = { Text("Apagar de “Todos”") },
+                    text = { Text(s.removeFromAll) },
                     onClick = { menuOpen = false; onHide() },
                 )
             }
@@ -289,17 +304,17 @@ private fun ChatRow(
     }
 }
 
-private fun filterLabel(f: ChatFilter): String = when (f) {
-    ChatFilter.TODOS -> "todos"
-    ChatFilter.SALVOS -> "salvos"
-    ChatFilter.NAO_SALVOS -> "não salvos"
+private fun filterLabel(f: ChatFilter, s: AppStrings): String = when (f) {
+    ChatFilter.TODOS -> s.filterAll
+    ChatFilter.SALVOS -> s.filterSaved
+    ChatFilter.NAO_SALVOS -> s.filterUnsaved
 }
 
-private fun emptyLabel(f: ChatFilter, query: String): String {
-    if (query.isNotBlank()) return "Nada encontrado para “$query”."
+private fun emptyLabel(f: ChatFilter, query: String, s: AppStrings): String {
+    if (query.isNotBlank()) return "${s.nothingFound}: \"$query\""
     return when (f) {
-        ChatFilter.TODOS -> "Nenhum chat ainda. Toque no + pra começar!"
-        ChatFilter.SALVOS -> "Nenhum contato salvo. Toque no + pra adicionar!"
-        ChatFilter.NAO_SALVOS -> "Nenhum chat não salvo."
+        ChatFilter.TODOS -> s.emptyAll
+        ChatFilter.SALVOS -> s.emptySaved
+        ChatFilter.NAO_SALVOS -> s.emptyUnsaved
     }
 }

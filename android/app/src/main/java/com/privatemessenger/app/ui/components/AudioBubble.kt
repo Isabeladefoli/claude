@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.privatemessenger.app.i18n.LocalStrings
 
 // Bolha de áudio: um botão redondo de tocar/parar + o texto "Áudio". Usa o
 // MediaPlayer do Android pra tocar direto da URL (streaming). Tudo protegido por
@@ -74,6 +75,6 @@ fun AudioBubble(url: String, contentColor: Color, buttonBg: Color) {
             Text(if (playing) "||" else ">", color = contentColor, fontSize = 16.sp)
         }
         Spacer(Modifier.width(8.dp))
-        Text("Áudio", color = contentColor)
+        Text(LocalStrings.current.audio, color = contentColor)
     }
 }

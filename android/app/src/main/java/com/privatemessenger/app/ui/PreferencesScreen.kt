@@ -78,14 +78,14 @@ fun PreferencesScreen(repo: MessengerRepository, onBack: () -> Unit) {
         Spacer(Modifier.height(24.dp))
 
         // --- Papel de parede do chat ---
-        Text("Papel de parede do chat", fontWeight = FontWeight.Bold, fontSize = 16.sp,
+        Text(s.wallpaperTitle, fontWeight = FontWeight.Bold, fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(8.dp))
         // As opções em linhas de 3.
         ChatWallpaper.values().toList().chunked(3).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowItems.forEach { w ->
-                    Choice(w.label, selected = wallpaper == w) {
+                    Choice(wallpaperLabel(w, s), selected = wallpaper == w) {
                         scope.launch { repo.setChatWallpaper(w) }
                     }
                 }
@@ -95,6 +95,16 @@ fun PreferencesScreen(repo: MessengerRepository, onBack: () -> Unit) {
 
         Spacer(Modifier.height(24.dp))
     }
+}
+
+private fun wallpaperLabel(w: ChatWallpaper, s: com.privatemessenger.app.i18n.AppStrings): String = when (w) {
+    ChatWallpaper.PADRAO -> s.wpDefault
+    ChatWallpaper.NOITE -> s.wpNight
+    ChatWallpaper.OCEANO -> s.wpOcean
+    ChatWallpaper.ROXO -> s.wpPurple
+    ChatWallpaper.VERDE -> s.wpGreen
+    ChatWallpaper.GRAFITE -> s.wpGraphite
+    ChatWallpaper.BEGE -> s.wpBeige
 }
 
 // Um "botão de escolha": preenchido (azul) quando selecionado, contornado quando não.
