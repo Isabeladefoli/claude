@@ -54,6 +54,11 @@ func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "destinatário não existe")
 		return
 	}
+	// Se houver bloqueio (em qualquer direção), não deixa enviar.
+	if h.isBlockedBetween(senderID, req.RecipientID) {
+		writeError(w, http.StatusForbidden, "não é possível enviar (bloqueado)")
+		return
+	}
 
 	// Salva a mensagem (já criptografada) no banco.
 	res, err := h.DB.Exec(

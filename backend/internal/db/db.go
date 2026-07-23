@@ -120,6 +120,32 @@ func migrate(db *sql.DB) error {
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 
+	-- Controle de "lidas": até qual mensagem (id) o dono já leu de cada conversa.
+	-- Serve pra contar quantas mensagens não-lidas cada chat tem.
+	CREATE TABLE IF NOT EXISTS chat_reads (
+		owner_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		other_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		last_read_id INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (owner_id, other_id)
+	);
+
+	-- Bloqueios: blocker bloqueou blocked (uma linha por par).
+	CREATE TABLE IF NOT EXISTS blocks (
+		blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (blocker_id, blocked_id)
+	);
+
+	-- Denúncias de usuário (vão pra dona do app ler/encaminhar por e-mail depois).
+	CREATE TABLE IF NOT EXISTS reports (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		reported_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+		reason      TEXT    NOT NULL,
+		created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
 	-- Reports de suporte que o usuário manda pela tela "Support". Guardamos aqui
 	-- pra que a dona do app leia; o e-mail de resposta é o que a pessoa digitou.
 	CREATE TABLE IF NOT EXISTS support_reports (

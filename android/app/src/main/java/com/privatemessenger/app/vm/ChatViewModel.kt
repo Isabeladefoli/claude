@@ -79,6 +79,9 @@ class ChatViewModel(
                     myUserId = myId,
                     error = null,
                 )
+                // Estou vendo a conversa -> marca como lida (zera o contador de
+                // não-lidas dela na lista de chats).
+                runCatching { repo.markChatRead(partnerId) }
             } catch (e: Exception) {
                 // Poll silencioso: se já temos mensagens na tela, uma falha
                 // momentânea não deve apagá-las nem mostrar erro. Só mostramos

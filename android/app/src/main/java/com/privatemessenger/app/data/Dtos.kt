@@ -111,7 +111,18 @@ data class ChatItem(
     val saved: Boolean = false,
     val hidden: Boolean = false,
     @SerialName("has_messages") val hasMessages: Boolean = false,
+    @SerialName("unread_count") val unreadCount: Int = 0,
     @SerialName("last_message") val lastMessage: Message? = null,
+)
+
+@Serializable
+data class BlocksResponse(
+    val blocked: List<Long> = emptyList(),
+)
+
+@Serializable
+data class ReportRequest(
+    val reason: String,
 )
 
 @Serializable

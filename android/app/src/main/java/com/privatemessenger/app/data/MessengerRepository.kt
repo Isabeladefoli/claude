@@ -144,6 +144,16 @@ class MessengerRepository(context: Context) {
 
     suspend fun unhideChat(otherId: Long) = api.unhideChat(otherId)
 
+    suspend fun markChatRead(otherId: Long) = api.markChatRead(otherId)
+
+    // --- Moderação (bloquear / denunciar) ---
+
+    suspend fun listBlocks(): List<Long> = api.listBlocks()
+    suspend fun isBlocked(id: Long): Boolean = api.listBlocks().contains(id)
+    suspend fun blockUser(id: Long) = api.blockUser(id)
+    suspend fun unblockUser(id: Long) = api.unblockUser(id)
+    suspend fun reportUser(id: Long, reason: String) = api.reportUser(id, reason)
+
     // Envia uma mensagem 1-a-1.
     //
     // >>> É AQUI que a criptografia E2E vai entrar no próximo passo. <<<

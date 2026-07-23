@@ -173,6 +173,41 @@ class ApiClient(private val tokenStore: TokenStore) {
         if (resp.status != HttpStatusCode.OK) fail(resp)
     }
 
+    // Marca a conversa como lida (zera o contador de não-lidas dela).
+    suspend fun markChatRead(otherId: Long) {
+        val resp = http.post(url("/api/chats/$otherId/read")) {
+            header("Authorization", authHeader())
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    // --- Moderação ---
+
+    suspend fun listBlocks(): List<Long> {
+        val resp = http.get(url("/api/blocks")) { header("Authorization", authHeader()) }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+        return resp.body<BlocksResponse>().blocked
+    }
+
+    suspend fun blockUser(id: Long) {
+        val resp = http.post(url("/api/users/$id/block")) { header("Authorization", authHeader()) }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    suspend fun unblockUser(id: Long) {
+        val resp = http.post(url("/api/users/$id/unblock")) { header("Authorization", authHeader()) }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
+    suspend fun reportUser(id: Long, reason: String) {
+        val resp = http.post(url("/api/users/$id/report")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(ReportRequest(reason))
+        }
+        if (resp.status != HttpStatusCode.Created) fail(resp)
+    }
+
     // --- Conta (tela Account details) ---
 
     // Confere a senha atual (trava pra entrar na tela). true = senha certa.

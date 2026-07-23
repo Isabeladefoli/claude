@@ -8,10 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,11 +55,13 @@ fun ProfileScreen(
     var loading by remember { mutableStateOf(true) }
     var notFound by remember { mutableStateOf(false) }
     var isSaved by remember { mutableStateOf(false) }
+    var isBlockedState by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var expand by remember { mutableStateOf(false) }
+    var showReport by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
 
-    // Carrega o perfil + descobre se já é um contato salvo.
+    // Carrega o perfil + descobre se já é contato salvo e se está bloqueado.
     LaunchedEffect(username) {
         loading = true
         notFound = false
@@ -65,6 +71,7 @@ fun ProfileScreen(
             isSaved = try {
                 repo.listChats().any { it.user.id == u.id && it.saved }
             } catch (_: Exception) { false }
+            isBlockedState = try { repo.isBlocked(u.id) } catch (_: Exception) { false }
         } catch (_: Exception) {
             notFound = true
         } finally {
@@ -150,6 +157,37 @@ fun ProfileScreen(
                             Text(if (isSaved) "Excluir contato" else s.profileAddFriend)
                         }
                     }
+                    Spacer(Modifier.height(16.dp))
+                    // Bloquear/Desbloquear + Reportar.
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            enabled = !busy,
+                            onClick = {
+                                scope.launch {
+                                    busy = true
+                                    feedback = null
+                                    try {
+                                        if (isBlockedState) {
+                                            repo.unblockUser(u.id); isBlockedState = false
+                                        } else {
+                                            repo.blockUser(u.id); isBlockedState = true
+                                        }
+                                    } catch (e: Exception) {
+                                        feedback = e.message
+                                    } finally {
+                                        busy = false
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error,
+                            ),
+                        ) {
+                            Text(if (isBlockedState) "Desbloquear" else "Bloquear")
+                        }
+                        TextButton(onClick = { showReport = true }) { Text("Reportar") }
+                    }
+
                     if (feedback != null) {
                         Spacer(Modifier.height(10.dp))
                         Text(feedback!!, color = MaterialTheme.colorScheme.error)
@@ -159,9 +197,56 @@ fun ProfileScreen(
         }
     }
 
+    // Diálogo de denúncia.
+    if (showReport) {
+        val u = user
+        ReportDialog(
+            onDismiss = { showReport = false },
+            onSend = { reason ->
+                if (u != null) {
+                    scope.launch {
+                        try {
+                            repo.reportUser(u.id, reason)
+                            feedback = "Denúncia enviada."
+                        } catch (e: Exception) {
+                            feedback = e.message
+                        }
+                        showReport = false
+                    }
+                }
+            },
+        )
+    }
+
     if (expand) {
         val u = user
         val avatarFull = u?.avatarUrl?.let { base.trimEnd('/') + it }
         FullscreenImage(url = avatarFull, onDismiss = { expand = false })
     }
+}
+
+@Composable
+private fun ReportDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
+    var reason by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Reportar usuário") },
+        text = {
+            Column {
+                Text("Conte o que aconteceu. A denúncia vai para o suporte do app.")
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("Motivo") },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = reason.isNotBlank(), onClick = { onSend(reason.trim()) }) {
+                Text("Enviar")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
 }

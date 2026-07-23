@@ -87,6 +87,13 @@ func main() {
 	mux.Handle("POST /api/contacts/{otherID}/remove", protected(h.RemoveContact))
 	mux.Handle("POST /api/chats/{otherID}/hide", protected(h.HideChat))
 	mux.Handle("POST /api/chats/{otherID}/unhide", protected(h.UnhideChat))
+	mux.Handle("POST /api/chats/{otherID}/read", protected(h.MarkChatRead))
+
+	// Moderação: bloquear/desbloquear/denunciar.
+	mux.Handle("GET /api/blocks", protected(h.ListBlocks))
+	mux.Handle("POST /api/users/{id}/block", protected(h.BlockUser))
+	mux.Handle("POST /api/users/{id}/unblock", protected(h.UnblockUser))
+	mux.Handle("POST /api/users/{id}/report", protected(h.ReportUser))
 
 	// Grupos
 	mux.Handle("POST /api/groups", protected(h.CreateGroup))

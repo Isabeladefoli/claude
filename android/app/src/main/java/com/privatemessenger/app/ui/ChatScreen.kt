@@ -88,6 +88,11 @@ fun ChatScreen(
     var expandUrl by remember { mutableStateOf<String?>(null) }
     // Se != null, estamos EDITANDO a mensagem com esse id (o campo vira "editar").
     var editingId by remember { mutableStateOf<Long?>(null) }
+    // Foto da pessoa (a tela do chat só recebe id+nome, então buscamos o avatar).
+    var partnerAvatar by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(partnerUsername) {
+        partnerAvatar = try { repo.findUser(partnerUsername).avatarUrl } catch (_: Exception) { null }
+    }
 
     // Estado da gravação de áudio.
     val recorder = remember { com.privatemessenger.app.ui.components.AudioRecorder(context) }
@@ -136,7 +141,12 @@ fun ChatScreen(
                 Text("‹", fontSize = 24.sp, color = MaterialTheme.colorScheme.onSurface)
             }
             Spacer(Modifier.width(6.dp))
-            Avatar(seed = partnerUsername, size = 38.dp, onClick = { onOpenProfile(partnerUsername) })
+            Avatar(
+                seed = partnerUsername,
+                size = 38.dp,
+                avatarPath = partnerAvatar,
+                onClick = { onOpenProfile(partnerUsername) },
+            )
             Spacer(Modifier.width(10.dp))
             val headerLabel = if (partnerId == state.myUserId) "$partnerUsername (eu)" else partnerUsername
             Text(

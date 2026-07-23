@@ -41,6 +41,7 @@ type chatItem struct {
 	Saved       bool            `json:"saved"`
 	Hidden      bool            `json:"hidden"`
 	HasMessages bool            `json:"has_messages"`
+	UnreadCount int             `json:"unread_count"` // mensagens não-lidas do outro
 	LastMessage *models.Message `json:"last_message,omitempty"`
 }
 
@@ -182,15 +183,20 @@ func (h *Handlers) ListChats(w http.ResponseWriter, r *http.Request) {
 			u.id, u.username, u.avatar_url,
 			COALESCE(c.saved, 0)  AS saved,
 			COALESCE(c.hidden, 0) AS hidden,
+			(SELECT COUNT(*) FROM messages mm
+			   WHERE mm.group_id IS NULL AND mm.sender_id = ids.uid
+			     AND mm.recipient_id = ?
+			     AND mm.id > COALESCE(cr.last_read_id, 0)) AS unread,
 			m.id, m.sender_id, m.recipient_id, m.ciphertext, m.nonce, m.created_at
 		FROM ids
-		JOIN users u         ON u.id = ids.uid
-		LEFT JOIN partners p ON p.uid = ids.uid
-		LEFT JOIN contacts c ON c.owner_id = ? AND c.contact_id = ids.uid
-		LEFT JOIN messages m ON m.id = p.last_id
+		JOIN users u          ON u.id = ids.uid
+		LEFT JOIN partners p    ON p.uid = ids.uid
+		LEFT JOIN contacts c    ON c.owner_id = ? AND c.contact_id = ids.uid
+		LEFT JOIN chat_reads cr ON cr.owner_id = ? AND cr.other_id = ids.uid
+		LEFT JOIN messages m    ON m.id = p.last_id
 		ORDER BY (m.id IS NULL), m.id DESC, u.username COLLATE NOCASE
 	`
-	rows, err := h.DB.Query(query, userID, userID, userID, userID, userID)
+	rows, err := h.DB.Query(query, userID, userID, userID, userID, userID, userID, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "erro ao listar chats")
 		return
@@ -200,7 +206,7 @@ func (h *Handlers) ListChats(w http.ResponseWriter, r *http.Request) {
 	chats := make([]chatItem, 0)
 	for rows.Next() {
 		var it chatItem
-		var savedInt, hiddenInt int
+		var savedInt, hiddenInt, unread int
 
 		// Campos da última mensagem podem ser NULL (contato sem conversa).
 		var mID, mSender sql.NullInt64
@@ -210,7 +216,7 @@ func (h *Handlers) ListChats(w http.ResponseWriter, r *http.Request) {
 
 		if err := rows.Scan(
 			&it.User.ID, &it.User.Username, &it.User.Avatar,
-			&savedInt, &hiddenInt,
+			&savedInt, &hiddenInt, &unread,
 			&mID, &mSender, &mRecipient, &mCipher, &mNonce, &mCreated,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "erro ao ler chats")
@@ -219,6 +225,7 @@ func (h *Handlers) ListChats(w http.ResponseWriter, r *http.Request) {
 
 		it.Saved = savedInt == 1
 		it.Hidden = hiddenInt == 1
+		it.UnreadCount = unread
 		if mID.Valid {
 			it.HasMessages = true
 			rid := mRecipient.Int64
@@ -238,6 +245,36 @@ func (h *Handlers) ListChats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"chats": chats})
+}
+
+// MarkChatRead marca a conversa com "other" como lida até a última mensagem.
+// Depois disso, o contador de não-lidas daquele chat zera.
+func (h *Handlers) MarkChatRead(w http.ResponseWriter, r *http.Request) {
+	ownerID, _ := auth.UserIDFromContext(r.Context())
+	otherID, ok := pathID(w, r, "otherID")
+	if !ok {
+		return
+	}
+	var maxID sql.NullInt64
+	h.DB.QueryRow(
+		`SELECT MAX(id) FROM messages
+		 WHERE group_id IS NULL AND ((sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?))`,
+		ownerID, otherID, otherID, ownerID,
+	).Scan(&maxID)
+	id := int64(0)
+	if maxID.Valid {
+		id = maxID.Int64
+	}
+	_, err := h.DB.Exec(
+		`INSERT INTO chat_reads (owner_id, other_id, last_read_id) VALUES (?, ?, ?)
+		 ON CONFLICT(owner_id, other_id) DO UPDATE SET last_read_id = ?`,
+		ownerID, otherID, id, id,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "erro ao marcar como lida")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // pathID lê um parâmetro de caminho numérico (ex: {otherID}) e já responde erro
