@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.privatemessenger.app.data.ChatItem
+import com.privatemessenger.app.data.MediaMessage
 import com.privatemessenger.app.data.MessengerRepository
 import com.privatemessenger.app.ui.components.Avatar
 import com.privatemessenger.app.vm.ChatFilter
@@ -58,6 +59,7 @@ fun ConversationsScreen(
     onOpenChat: (partnerId: Long, partnerUsername: String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenProfile: (username: String) -> Unit,
 ) {
     val vm: ConversationsViewModel = viewModel(factory = conversationsViewModelFactory(repo))
     val state by vm.state.collectAsState()
@@ -147,6 +149,7 @@ fun ConversationsScreen(
                             chat = chat,
                             isMe = chat.user.id == state.myUserId,
                             onOpen = { onOpenChat(chat.user.id, chat.user.username) },
+                            onOpenProfile = { onOpenProfile(chat.user.username) },
                             onHide = { vm.hideChat(chat) },
                         )
                         HorizontalDivider()
@@ -189,6 +192,7 @@ private fun ChatRow(
     chat: ChatItem,
     isMe: Boolean,
     onOpen: () -> Unit,
+    onOpenProfile: () -> Unit,
     onHide: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -204,7 +208,12 @@ private fun ChatRow(
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(seed = chat.user.username, size = 44.dp, avatarPath = chat.user.avatarUrl)
+            Avatar(
+                seed = chat.user.username,
+                size = 44.dp,
+                avatarPath = chat.user.avatarUrl,
+                onClick = onOpenProfile,
+            )
             Spacer(Modifier.width(12.dp))
             Column {
                 val name = buildString {
@@ -215,8 +224,15 @@ private fun ChatRow(
                 Text(name, fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground)
                 // Prévia da última mensagem, ou marca de contato salvo sem conversa.
-                val preview = chat.lastMessage?.ciphertext
-                    ?: if (chat.saved) "Contato salvo" else ""
+                // Se a última for mídia, mostramos "Foto"/"Áudio" no lugar do
+                // conteúdo cru.
+                val preview = chat.lastMessage?.let { m ->
+                    when (MediaMessage.parse(m.ciphertext)?.first) {
+                        MediaMessage.IMAGE -> "Foto"
+                        MediaMessage.AUDIO -> "Áudio"
+                        else -> m.ciphertext
+                    }
+                } ?: if (chat.saved) "Contato salvo" else ""
                 if (preview.isNotEmpty()) {
                     Text(preview, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

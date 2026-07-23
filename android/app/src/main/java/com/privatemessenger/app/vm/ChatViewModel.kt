@@ -124,6 +124,32 @@ class ChatViewModel(
         }
     }
 
+    // Envia uma foto/áudio: sobe o arquivo e manda como mensagem de mídia.
+    fun sendMedia(bytes: ByteArray, filename: String, mime: String, kind: String) {
+        viewModelScope.launch {
+            try {
+                val sent = repo.sendMediaMessage(partnerId, bytes, filename, mime, kind)
+                appendUnique(sent)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    // Apaga uma mensagem minha (some pra todo mundo). Já tira da tela na hora.
+    fun deleteMessage(msg: Message) {
+        viewModelScope.launch {
+            try {
+                repo.deleteMessage(msg.id)
+                _state.value = _state.value.copy(
+                    messages = _state.value.messages.filterNot { it.id == msg.id },
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
     // Converte o conteúdo (por enquanto texto puro) pra exibição.
     fun displayText(msg: Message): String = repo.decryptForDisplay(msg)
 

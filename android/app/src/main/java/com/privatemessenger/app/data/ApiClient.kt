@@ -5,6 +5,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.request.delete
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
@@ -148,6 +149,14 @@ class ApiClient(private val tokenStore: TokenStore) {
         return resp.body()
     }
 
+    // Exclui (desfaz o salvar) um contato.
+    suspend fun removeContact(otherId: Long) {
+        val resp = http.post(url("/api/contacts/$otherId/remove")) {
+            header("Authorization", authHeader())
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
     // "Apaga" o chat da lista Todos (continua em Salvos e na busca).
     suspend fun hideChat(otherId: Long) {
         val resp = http.post(url("/api/chats/$otherId/hide")) {
@@ -240,5 +249,12 @@ class ApiClient(private val tokenStore: TokenStore) {
         }
         if (resp.status != HttpStatusCode.Created) fail(resp)
         return resp.body()
+    }
+
+    suspend fun deleteMessage(id: Long) {
+        val resp = http.delete(url("/api/messages/$id")) {
+            header("Authorization", authHeader())
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
     }
 }

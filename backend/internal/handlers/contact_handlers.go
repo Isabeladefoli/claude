@@ -136,6 +136,25 @@ func (h *Handlers) UnhideChat(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// RemoveContact "desfaz o salvar" de um contato (saved = 0): ele sai de
+// "Salvos". Se ainda houver conversa, o chat continua existindo em "Todos".
+func (h *Handlers) RemoveContact(w http.ResponseWriter, r *http.Request) {
+	ownerID, _ := auth.UserIDFromContext(r.Context())
+	otherID, ok := pathID(w, r, "otherID")
+	if !ok {
+		return
+	}
+	_, err := h.DB.Exec(
+		`UPDATE contacts SET saved = 0 WHERE owner_id = ? AND contact_id = ?`,
+		ownerID, otherID,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "erro ao excluir contato")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // ListChats devolve a lista unificada: todo mundo com quem você conversou +
 // todos os seus contatos salvos, cada um com seus marcadores e a última
 // mensagem (se houver).

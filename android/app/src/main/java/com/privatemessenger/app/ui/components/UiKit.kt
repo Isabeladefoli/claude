@@ -70,8 +70,9 @@ val LocalBaseUrl = staticCompositionLocalOf { "" }
 
 // Avatar redondo. Se houver foto (avatarPath, ex: "/api/media/xxx"), mostra a
 // foto de verdade; senão, cai na inicial do nome (ou "?" se não houver nome).
+// Se onClick != null, tocar no avatar dispara a ação (ex: abrir o perfil).
 @Composable
-fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
+fun Avatar(seed: String?, size: Dp, avatarPath: String? = null, onClick: (() -> Unit)? = null) {
     val base = LocalBaseUrl.current
     val fullUrl = avatarPath?.takeIf { it.isNotBlank() }?.let { base.trimEnd('/') + it }
     val photo = rememberNetworkImage(fullUrl)
@@ -81,7 +82,8 @@ fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
             .size(size)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+            .let { if (onClick != null) it.clickable { onClick() } else it },
         contentAlignment = Alignment.Center,
     ) {
         if (photo != null) {

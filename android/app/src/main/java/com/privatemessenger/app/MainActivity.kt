@@ -90,7 +90,9 @@ private sealed interface Screen {
     data object Languages : Screen
     data object Support : Screen
     data object Search : Screen
-    data class Profile(val username: String) : Screen
+    // `from` guarda de qual tela o perfil foi aberto, pra o "voltar" retornar
+    // pro lugar certo (busca, conversas ou um chat).
+    data class Profile(val username: String, val from: Screen) : Screen
 }
 
 @Composable
@@ -112,12 +114,13 @@ private fun AppRoot(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
     // que o voltar sai do app (comportamento normal do Android). Assim você não
     // cai mais pra fora do app sem querer.
     BackHandler(enabled = screen !is Screen.Conversations) {
-        screen = when (screen) {
+        val cur = screen
+        screen = when (cur) {
             is Screen.AccountDetails,
             is Screen.Preferences,
             is Screen.Languages,
             is Screen.Support -> Screen.Settings
-            is Screen.Profile -> Screen.Search
+            is Screen.Profile -> cur.from
             else -> Screen.Conversations
         }
     }
@@ -128,6 +131,7 @@ private fun AppRoot(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
             onOpenChat = { id, name -> screen = Screen.Chat(id, name) },
             onOpenSettings = { screen = Screen.Settings },
             onOpenSearch = { screen = Screen.Search },
+            onOpenProfile = { name -> screen = Screen.Profile(name, Screen.Conversations) },
         )
 
         is Screen.Chat -> ChatScreen(
@@ -135,6 +139,7 @@ private fun AppRoot(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
             partnerId = s.partnerId,
             partnerUsername = s.partnerUsername,
             onBack = { screen = Screen.Conversations },
+            onOpenProfile = { name -> screen = Screen.Profile(name, s) },
         )
 
         is Screen.Settings -> SettingsScreen(
@@ -177,13 +182,13 @@ private fun AppRoot(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
 
         is Screen.Search -> SearchScreen(
             onBack = { screen = Screen.Conversations },
-            onSearch = { username -> screen = Screen.Profile(username) },
+            onSearch = { username -> screen = Screen.Profile(username, Screen.Search) },
         )
 
         is Screen.Profile -> ProfileScreen(
             repo = repo,
             username = s.username,
-            onBack = { screen = Screen.Search },
+            onBack = { screen = s.from },
             onOpenChat = { id, name -> screen = Screen.Chat(id, name) },
         )
     }

@@ -149,3 +149,24 @@ func (h *Handlers) GetConversation(w http.ResponseWriter, r *http.Request) {
 		"messages": messages,
 	})
 }
+
+// DeleteMessage apaga uma mensagem. Só o REMETENTE pode apagar a própria
+// mensagem (você não pode apagar a mensagem que a outra pessoa te mandou).
+func (h *Handlers) DeleteMessage(w http.ResponseWriter, r *http.Request) {
+	userID, _ := auth.UserIDFromContext(r.Context())
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	res, err := h.DB.Exec(`DELETE FROM messages WHERE id = ? AND sender_id = ?`, id, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "erro ao apagar mensagem")
+		return
+	}
+	// RowsAffected = 0 significa: ou não existe, ou não é sua (não é o remetente).
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusForbidden, "você só pode apagar as suas mensagens")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}

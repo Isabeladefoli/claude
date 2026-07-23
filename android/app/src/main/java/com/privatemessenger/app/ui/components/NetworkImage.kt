@@ -26,8 +26,9 @@ import java.net.URL
 // recarregava toda vez.
 // ---------------------------------------------------------------------------
 
-// Guarda até ~30 imagens. Suficiente pra lista de conversas + perfis abertos.
-private val imageCache = LruCache<String, ImageBitmap>(30)
+// Guarda até ~100 imagens. Suficiente pra lista de conversas + perfis + fotos
+// no chat, sem a foto "sumir" quando você navega bastante pelo app.
+private val imageCache = LruCache<String, ImageBitmap>(100)
 
 @Composable
 fun rememberNetworkImage(url: String?): ImageBitmap? {

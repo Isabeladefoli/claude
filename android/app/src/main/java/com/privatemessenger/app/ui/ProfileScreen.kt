@@ -13,7 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,16 +23,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
 import com.privatemessenger.app.data.MessengerRepository
 import com.privatemessenger.app.data.User
 import com.privatemessenger.app.i18n.LocalStrings
 import com.privatemessenger.app.ui.components.Avatar
+import com.privatemessenger.app.ui.components.FullscreenImage
+import com.privatemessenger.app.ui.components.LocalBaseUrl
 import com.privatemessenger.app.ui.components.PrimaryButton
 import com.privatemessenger.app.ui.components.TopBar
 import kotlinx.coroutines.launch
 
-// Página de perfil de um usuário pesquisado: foto (por ora, inicial), nome de
-// exibição, @usuário e dois botões — Mensagem e Adicionar.
+// Página de perfil de um usuário: foto grande (toca pra expandir), nome de
+// exibição, @usuário e ações — Mensagem, e Adicionar/Excluir contato.
 @Composable
 fun ProfileScreen(
     repo: MessengerRepository,
@@ -43,19 +45,26 @@ fun ProfileScreen(
 ) {
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
+    val base = LocalBaseUrl.current
 
     var user by remember { mutableStateOf<User?>(null) }
     var loading by remember { mutableStateOf(true) }
     var notFound by remember { mutableStateOf(false) }
-    var added by remember { mutableStateOf(false) }
-    var addError by remember { mutableStateOf<String?>(null) }
+    var isSaved by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var expand by remember { mutableStateOf(false) }
+    var feedback by remember { mutableStateOf<String?>(null) }
 
-    // Carrega o perfil ao abrir (uma vez por username).
+    // Carrega o perfil + descobre se já é um contato salvo.
     LaunchedEffect(username) {
         loading = true
         notFound = false
         try {
-            user = repo.findUser(username)
+            val u = repo.findUser(username)
+            user = u
+            isSaved = try {
+                repo.listChats().any { it.user.id == u.id && it.saved }
+            } catch (_: Exception) { false }
         } catch (_: Exception) {
             notFound = true
         } finally {
@@ -83,14 +92,20 @@ fun ProfileScreen(
 
             else -> {
                 val u = user!!
+                val avatarFull = u.avatarUrl?.let { base.trimEnd('/') + it }
                 Spacer(Modifier.height(24.dp))
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Avatar(seed = u.name ?: u.username, size = 96.dp, avatarPath = u.avatarUrl)
+                    // Foto grande — toca pra expandir (só se tiver foto).
+                    Avatar(
+                        seed = u.name ?: u.username,
+                        size = 120.dp,
+                        avatarPath = u.avatarUrl,
+                        onClick = { if (avatarFull != null) expand = true },
+                    )
                     Spacer(Modifier.height(14.dp))
-                    // Nome de exibição (se tiver) em destaque; @usuário embaixo.
                     Text(
                         u.name?.takeIf { it.isNotBlank() } ?: u.username,
                         fontSize = 22.sp,
@@ -109,29 +124,44 @@ fun ProfileScreen(
                             text = s.profileMessage,
                             onClick = { onOpenChat(u.id, u.username) },
                         )
+                        // Adicionar OU Excluir, conforme já ser contato salvo.
                         OutlinedButton(
+                            enabled = !busy,
                             onClick = {
                                 scope.launch {
+                                    busy = true
+                                    feedback = null
                                     try {
-                                        repo.addContact(u.username)
-                                        added = true
-                                        addError = null
+                                        if (isSaved) {
+                                            repo.removeContact(u.id)
+                                            isSaved = false
+                                        } else {
+                                            repo.addContact(u.username)
+                                            isSaved = true
+                                        }
                                     } catch (e: Exception) {
-                                        addError = e.message
+                                        feedback = e.message
+                                    } finally {
+                                        busy = false
                                     }
                                 }
                             },
-                            enabled = !added,
                         ) {
-                            Text(if (added) "✓ ${s.profileAddFriend}" else s.profileAddFriend)
+                            Text(if (isSaved) "Excluir contato" else s.profileAddFriend)
                         }
                     }
-                    if (addError != null) {
+                    if (feedback != null) {
                         Spacer(Modifier.height(10.dp))
-                        Text(addError!!, color = MaterialTheme.colorScheme.error)
+                        Text(feedback!!, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
         }
+    }
+
+    if (expand) {
+        val u = user
+        val avatarFull = u?.avatarUrl?.let { base.trimEnd('/') + it }
+        FullscreenImage(url = avatarFull, onDismiss = { expand = false })
     }
 }

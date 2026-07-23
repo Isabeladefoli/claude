@@ -138,6 +138,8 @@ class MessengerRepository(context: Context) {
 
     suspend fun addContact(username: String): PublicUser = api.addContact(username)
 
+    suspend fun removeContact(otherId: Long) = api.removeContact(otherId)
+
     suspend fun hideChat(otherId: Long) = api.hideChat(otherId)
 
     suspend fun unhideChat(otherId: Long) = api.unhideChat(otherId)
@@ -153,6 +155,21 @@ class MessengerRepository(context: Context) {
         val ciphertext = text          // TODO E2E: substituir por criptografia real
         val nonce = "plaintext"        // TODO E2E: nonce gerado pela criptografia
         return api.sendMessage(recipientId, ciphertext, nonce)
+    }
+
+    // Apaga uma mensagem (só a própria, o servidor confere).
+    suspend fun deleteMessage(id: Long) = api.deleteMessage(id)
+
+    // Sobe um arquivo e manda como mensagem de mídia (foto/áudio) para a conversa.
+    suspend fun sendMediaMessage(
+        recipientId: Long,
+        bytes: ByteArray,
+        filename: String,
+        mime: String,
+        kind: String,
+    ): Message {
+        val path = api.uploadMedia(bytes, filename, mime).url
+        return api.sendMessage(recipientId, MediaMessage.encode(kind, path), "plaintext")
     }
 
     // Converte o conteúdo de uma mensagem pra texto exibível.

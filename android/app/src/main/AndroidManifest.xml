@@ -3,6 +3,8 @@
 
     <!-- O app precisa de internet pra falar com o servidor. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Gravar áudio (mensagens de voz). Pedimos ao usuário na hora de gravar. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:allowBackup="true"
