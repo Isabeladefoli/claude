@@ -78,8 +78,6 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("😕", fontSize = 40.sp)
-                Spacer(Modifier.height(8.dp))
                 Text(s.userNotFound, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 

@@ -91,13 +91,13 @@ fun ConversationsScreen(
                         color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
-                // Engrenagem (⚙) — abre o menu de configurações.
-                Box(
-                    modifier = Modifier.size(40.dp).clickable { onOpenSettings() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("⚙", fontSize = 24.sp)
-                }
+                // Botão de configurações (abre o menu).
+                Text(
+                    "Config",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onOpenSettings() }.padding(8.dp),
+                )
             }
 
             Spacer(Modifier.height(10.dp))

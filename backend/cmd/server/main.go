@@ -116,7 +116,7 @@ func main() {
 	// 7) Sobe o servidor numa rotina e espera sinal de desligamento pra fechar
 	//    com elegância (graceful shutdown) — termina o que está em andamento.
 	go func() {
-		log.Printf("🚀 servidor no ar em %s", cfg.Addr)
+		log.Printf("servidor no ar em %s", cfg.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("servidor: %v", err)
 		}

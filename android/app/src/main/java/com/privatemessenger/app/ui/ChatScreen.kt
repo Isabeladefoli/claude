@@ -154,7 +154,12 @@ fun ChatScreen(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("➤", fontSize = 20.sp, color = MaterialTheme.colorScheme.onPrimary)
+                Text(
+                    ">",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
             }
         }
     }

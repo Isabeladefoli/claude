@@ -154,7 +154,8 @@ fun AuthScreen(repo: MessengerRepository) {
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             } else {
-                                Text("📷", fontSize = 30.sp)
+                                Text("+", fontSize = 34.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Spacer(Modifier.height(4.dp))
@@ -174,7 +175,6 @@ fun AuthScreen(repo: MessengerRepository) {
                         placeholder = { Text("User") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
-                        trailingIcon = { Text("👤", fontSize = 18.sp) },
                         modifier = Modifier.fillMaxWidth(),
                     )
 
@@ -190,13 +190,9 @@ fun AuthScreen(repo: MessengerRepository) {
                         visualTransformation = if (showPass) VisualTransformation.None
                         else PasswordVisualTransformation(),
                         trailingIcon = {
-                            Text(
-                                if (showPass) "🙈" else "👁",
-                                fontSize = 18.sp,
-                                modifier = Modifier
-                                    .padding(end = 8.dp)
-                                    .clickable { showPass = !showPass },
-                            )
+                            TextButton(onClick = { showPass = !showPass }) {
+                                Text(if (showPass) "ocultar" else "ver", fontSize = 13.sp)
+                            }
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )

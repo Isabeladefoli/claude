@@ -96,7 +96,7 @@ fun PreferencesScreen(repo: MessengerRepository, onBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         // Uma amostra de texto pra a pessoa ver o efeito na hora.
         Text(
-            "Aa — 💙",
+            "Aa",
             fontSize = 22.sp,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.fillMaxWidth(),

@@ -57,7 +57,7 @@ dependencies {
     // --- Rede: Ktor client ---
     // Escolhemos Ktor (e não Retrofit) de propósito: ele é multiplataforma.
     // Assim, quando migrarmos pra Kotlin Multiplatform (Android + iOS), este
-    // mesmo código de rede será reaproveitado. 👍
+    // mesmo código de rede será reaproveitado.
     val ktor = "3.0.1"
     implementation("io.ktor:ktor-client-core:$ktor")
     implementation("io.ktor:ktor-client-okhttp:$ktor")            // motor HTTP no Android

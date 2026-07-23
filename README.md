@@ -56,7 +56,7 @@ export MSG_JWT_SECRET=$(openssl rand -hex 32)
 go run ./cmd/server
 ```
 
-> ⚠️ Se você **não** definir `MSG_JWT_SECRET`, um segredo aleatório é gerado a
+> AVISO: Se você **não** definir `MSG_JWT_SECRET`, um segredo aleatório é gerado a
 > cada reinício — e todo mundo é deslogado quando o servidor reinicia. Ok pra
 > testar, ruim pra valer.
 

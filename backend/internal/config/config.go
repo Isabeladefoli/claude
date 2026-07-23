@@ -55,7 +55,7 @@ func Load() *Config {
 			log.Fatalf("não consegui gerar segredo JWT: %v", err)
 		}
 		secret = hex.EncodeToString(buf)
-		log.Println("⚠️  MSG_JWT_SECRET não definido — gerando um temporário. " +
+		log.Println("AVISO: MSG_JWT_SECRET não definido — gerando um temporário. " +
 			"Todos serão deslogados ao reiniciar. Defina a env em produção!")
 	}
 	cfg.JWTSecret = []byte(secret)

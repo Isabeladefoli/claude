@@ -2,6 +2,7 @@ package com.privatemessenger.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -105,6 +106,21 @@ private fun AppRoot(repo: MessengerRepository, onLogoutCleanup: () -> Unit) {
 
     // Área logada: controla qual tela interna está aberta.
     var screen by remember { mutableStateOf<Screen>(Screen.Conversations) }
+
+    // Botão "voltar" do Android (a barrinha de baixo): em vez de FECHAR o app,
+    // ele volta DENTRO do app pra tela anterior. Só na tela raiz (Conversas) é
+    // que o voltar sai do app (comportamento normal do Android). Assim você não
+    // cai mais pra fora do app sem querer.
+    BackHandler(enabled = screen !is Screen.Conversations) {
+        screen = when (screen) {
+            is Screen.AccountDetails,
+            is Screen.Preferences,
+            is Screen.Languages,
+            is Screen.Support -> Screen.Settings
+            is Screen.Profile -> Screen.Search
+            else -> Screen.Conversations
+        }
+    }
 
     when (val s = screen) {
         is Screen.Conversations -> ConversationsScreen(

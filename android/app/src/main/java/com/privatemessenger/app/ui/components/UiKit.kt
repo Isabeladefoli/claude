@@ -69,7 +69,7 @@ fun TopBar(title: String, onBack: (() -> Unit)? = null) {
 val LocalBaseUrl = staticCompositionLocalOf { "" }
 
 // Avatar redondo. Se houver foto (avatarPath, ex: "/api/media/xxx"), mostra a
-// foto de verdade (via Coil); senão, cai na inicial do nome ou num 👤.
+// foto de verdade; senão, cai na inicial do nome (ou "?" se não houver nome).
 @Composable
 fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
     val base = LocalBaseUrl.current
@@ -92,10 +92,10 @@ fun Avatar(seed: String?, size: Dp, avatarPath: String? = null) {
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            // Sem foto (ou ainda carregando/falhou): mostra a inicial ou 👤.
+            // Sem foto (ou ainda carregando/falhou): mostra a inicial ou "?".
             val initial = seed?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
             Text(
-                text = initial ?: "👤",
+                text = initial ?: "?",
                 fontSize = (size.value / 2.4f).sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Bold,

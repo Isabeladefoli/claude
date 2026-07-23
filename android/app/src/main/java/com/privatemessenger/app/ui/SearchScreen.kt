@@ -1,6 +1,5 @@
 package com.privatemessenger.app.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.privatemessenger.app.i18n.LocalStrings
 import com.privatemessenger.app.ui.components.TopBar
 
@@ -58,13 +57,7 @@ fun SearchScreen(onBack: () -> Unit, onSearch: (username: String) -> Unit) {
             label = { Text(s.searchHint) },
             singleLine = true,
             trailingIcon = {
-                Text(
-                    "🔍",
-                    fontSize = 20.sp,
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .clickable { go() },
-                )
+                TextButton(onClick = { go() }) { Text("Buscar") }
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { go() }),
