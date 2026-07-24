@@ -3,11 +3,11 @@ package com.privatemessenger.app.crypto
 import android.util.Base64
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
-import java.security.KeyAgreement
 import java.security.SecureRandom
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
+import javax.crypto.KeyAgreement
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
