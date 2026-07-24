@@ -22,6 +22,37 @@ class MessengerRepository(context: Context) {
     private val api = ApiClient(tokenStore)
     private val deviceKeys = DeviceKeys.create(appContext)
 
+    // Caches em memória pra descriptografia. Sem eles, o app fazia UMA requisição
+    // HTTP por mensagem (buscando a chave pública do outro), o que deixava tudo
+    // lento e estourava o rate limit do servidor ("muitos pedidos"). Com o cache,
+    // cada chave é buscada uma única vez por sessão.
+    private val publicKeyCache = java.util.concurrent.ConcurrentHashMap<Long, String>()
+    @Volatile private var cachedPrivateKey: String? = null
+    @Volatile private var cachedMyId: Long? = null
+
+    private suspend fun publicKeyOf(userId: Long): String {
+        publicKeyCache[userId]?.let { return it }
+        val key = findUserById(userId).publicKey
+        publicKeyCache[userId] = key
+        return key
+    }
+
+    private suspend fun myPrivateKeyCached(): String? {
+        cachedPrivateKey?.let { return it }
+        return deviceKeys.privateKey()?.also { cachedPrivateKey = it }
+    }
+
+    private suspend fun myIdCached(): Long? {
+        cachedMyId?.let { return it }
+        return currentUserId()?.also { cachedMyId = it }
+    }
+
+    private fun clearCryptoCaches() {
+        publicKeyCache.clear()
+        cachedPrivateKey = null
+        cachedMyId = null
+    }
+
     // Um escopo de corrotinas próprio pra tarefas de fundo (ex: o WebSocket).
     private val scope = CoroutineScope(SupervisorJob())
     private val realtime = RealtimeClient(api, tokenStore, scope)
@@ -73,6 +104,7 @@ class MessengerRepository(context: Context) {
         if (!hadKeys) {
             runCatching { api.updateProfile(UpdateProfileRequest(publicKey = publicKey)) }
         }
+        clearCryptoCaches() // sessão nova: descarta chaves em cache da anterior
         realtime.start()
         return auth
     }
@@ -82,6 +114,7 @@ class MessengerRepository(context: Context) {
     suspend fun logout() {
         realtime.stop()
         tokenStore.clear()
+        clearCryptoCaches()
     }
 
     // Chamado quando o app abre já com sessão salva, pra religar o tempo real.
@@ -226,14 +259,14 @@ class MessengerRepository(context: Context) {
             // O segredo ECDH é simétrico: depende do par {eu, outro}, não de quem
             // enviou. O "outro" é o destinatário quando EU enviei, ou o remetente
             // quando eu recebi. Sempre usamos: minha_privada + publica_do_OUTRO.
-            val myId = currentUserId()
+            val myId = myIdCached()
             val otherId = if (message.senderId == myId) message.recipientId else message.senderId
             if (otherId == null || otherId <= 0) {
                 return message.ciphertext // fallback: sem par definido (ex: mensagem de grupo)
             }
 
-            val otherPublicKey = findUserById(otherId).publicKey
-            val myPrivateKey = deviceKeys.privateKey() ?: return message.ciphertext
+            val otherPublicKey = publicKeyOf(otherId)
+            val myPrivateKey = myPrivateKeyCached() ?: return message.ciphertext
 
             return CryptoUtils.decrypt(
                 ciphertext = message.ciphertext,
