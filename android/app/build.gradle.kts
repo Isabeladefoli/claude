@@ -5,6 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")      // compilador do Jetpack Compose
     id("org.jetbrains.kotlin.plugin.serialization") // pra converter JSON <-> objetos
+    id("com.google.gms.google-services")           // Firebase
 }
 
 android {
@@ -37,10 +38,6 @@ android {
     buildFeatures {
         compose = true // liga o Jetpack Compose (nossa interface)
     }
-}
-
-plugins {
-    id("com.google.gms.google-services") version "4.4.0" // para o Firebase
 }
 
 dependencies {
