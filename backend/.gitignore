@@ -13,3 +13,8 @@ data/
 
 # Segredo do JWT gerado localmente pelo start.sh (nunca versionar)
 .jwt_secret
+
+# Chave de conta de serviço do Firebase (FCM) — SEGREDO, nunca versionar.
+# É o que dá ao servidor permissão de enviar notificações push.
+service-account.json
+*firebase-adminsdk*.json
