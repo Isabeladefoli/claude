@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -27,23 +28,45 @@ func (h *Handlers) Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, u)
 }
 
-// GetUserByUsername permite achar outra pessoa pelo nome de usuário. Retorna
-// o perfil público dela — incluindo a CHAVE PÚBLICA, que o app usa pra
-// criptografar mensagens destinadas a essa pessoa.
-func (h *Handlers) GetUserByUsername(w http.ResponseWriter, r *http.Request) {
-	// A rota é /api/users/{username}. Pegamos a última parte do caminho.
-	username := strings.TrimPrefix(r.URL.Path, "/api/users/")
-	username = strings.TrimSpace(username)
-	if username == "" {
-		writeError(w, http.StatusBadRequest, "informe o nome de usuário")
+// GetUser busca um usuário pelo ID ou username. Se o que vem depois de
+// /api/users/ for numérico, trata como ID. Senão, trata como username.
+// Retorna a chave pública (necessária pra criptografar mensagens).
+func (h *Handlers) GetUser(w http.ResponseWriter, r *http.Request) {
+	// A rota é /api/users/{idOrUsername}. Pegamos a última parte do caminho.
+	param := strings.TrimPrefix(r.URL.Path, "/api/users/")
+	param = strings.TrimSpace(param)
+	if param == "" {
+		writeError(w, http.StatusBadRequest, "informe o ID ou nome de usuário")
 		return
 	}
 
 	var u models.User
+
+	// Tenta parsear como ID primeiro.
+	if userID, err := fmt.Sscanf(param, "%d"); err == nil && userID > 0 {
+		err := h.DB.QueryRow(
+			`SELECT id, username, name, public_key, avatar_url, created_at
+			 FROM users WHERE id = ?`,
+			userID,
+		).Scan(&u.ID, &u.Username, &u.Name, &u.PublicKey, &u.AvatarURL, &u.CreatedAt)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "usuário não encontrado")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "erro ao buscar usuário")
+			return
+		}
+		writeJSON(w, http.StatusOK, u)
+		return
+	}
+
+	// Senão, trata como username.
 	err := h.DB.QueryRow(
 		`SELECT id, username, name, public_key, avatar_url, created_at
 		 FROM users WHERE username = ?`,
-		username,
+		param,
 	).Scan(&u.ID, &u.Username, &u.Name, &u.PublicKey, &u.AvatarURL, &u.CreatedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {

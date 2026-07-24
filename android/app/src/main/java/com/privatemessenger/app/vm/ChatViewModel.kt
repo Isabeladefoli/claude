@@ -2,8 +2,10 @@ package com.privatemessenger.app.vm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.privatemessenger.app.data.DisplayMessage
 import com.privatemessenger.app.data.Message
 import com.privatemessenger.app.data.MessengerRepository
+import com.privatemessenger.app.data.toDisplay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +17,7 @@ import kotlinx.coroutines.launch
 // Estado da tela de conversa (chat) com uma pessoa específica.
 data class ChatUiState(
     val loading: Boolean = false,
-    val messages: List<Message> = emptyList(),
+    val messages: List<DisplayMessage> = emptyList(),
     val error: String? = null,
     val myUserId: Long = -1,
 )
@@ -68,9 +70,14 @@ class ChatViewModel(
                     repo.currentUserId() ?: -1
                 }
                 val history = repo.getConversation(partnerId)
+                // Descriptografa todas as mensagens.
+                val decrypted = history.map { msg ->
+                    val text = repo.decryptForDisplay(msg)
+                    msg.toDisplay(text)
+                }
                 // Junta o que veio do servidor com o que já temos na tela,
                 // sem duplicar (por id) e mantendo a ordem cronológica.
-                val merged = (history + _state.value.messages)
+                val merged = (decrypted + _state.value.messages)
                     .distinctBy { it.id }
                     .sortedBy { it.id }
                 _state.value = _state.value.copy(
@@ -107,7 +114,9 @@ class ChatViewModel(
                     (msg.senderId == myId && msg.recipientId == partnerId)
                 )
                 if (belongsHere) {
-                    appendUnique(msg)
+                    // Descriptografa e adiciona.
+                    val text = repo.decryptForDisplay(msg)
+                    appendUnique(msg.toDisplay(text))
                 }
             }
         }
@@ -120,7 +129,8 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 val sent = repo.sendMessage(partnerId, trimmed)
-                appendUnique(sent)
+                val decrypted = sent.toDisplay(trimmed) // já temos o texto, não precisa descriptografar
+                appendUnique(decrypted)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
             }
@@ -132,7 +142,8 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 val sent = repo.sendMediaMessage(partnerId, bytes, filename, mime, kind)
-                appendUnique(sent)
+                val text = repo.decryptForDisplay(sent)
+                appendUnique(sent.toDisplay(text))
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
             }
@@ -148,7 +159,7 @@ class ChatViewModel(
                 repo.editMessage(id, t)
                 _state.value = _state.value.copy(
                     messages = _state.value.messages.map {
-                        if (it.id == id) it.copy(ciphertext = t) else it
+                        if (it.id == id) it.copy(text = t) else it
                     },
                 )
             } catch (e: Exception) {
@@ -158,7 +169,7 @@ class ChatViewModel(
     }
 
     // Apaga uma mensagem minha (some pra todo mundo). Já tira da tela na hora.
-    fun deleteMessage(msg: Message) {
+    fun deleteMessage(msg: DisplayMessage) {
         viewModelScope.launch {
             try {
                 repo.deleteMessage(msg.id)
@@ -171,12 +182,9 @@ class ChatViewModel(
         }
     }
 
-    // Converte o conteúdo (por enquanto texto puro) pra exibição.
-    fun displayText(msg: Message): String = repo.decryptForDisplay(msg)
-
     // Evita duplicar a mesma mensagem (ex: chegou pelo envio E pelo WebSocket)
     // e mantém a lista ordenada por id (ordem cronológica).
-    private fun appendUnique(msg: Message) {
+    private fun appendUnique(msg: DisplayMessage) {
         val current = _state.value.messages
         if (current.any { it.id == msg.id }) return
         _state.value = _state.value.copy(messages = (current + msg).sortedBy { it.id })

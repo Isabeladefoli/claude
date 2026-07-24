@@ -1,26 +1,26 @@
 package com.privatemessenger.app.data
 
-import android.util.Base64
-import java.security.SecureRandom
+import android.content.Context
+import com.privatemessenger.app.crypto.CryptoUtils
 
-// ---------------------------------------------------------------------------
-// DeviceKeys — as chaves de criptografia do aparelho.
-//
-// >>> PLACEHOLDER: por enquanto (fluxo primeiro) geramos só um valor aleatório
-// pra ter algo no campo public_key que o servidor exige. <<<
-//
-// No passo E2E, isto vira a coisa de verdade:
-//   1. Gerar um PAR de chaves X25519 (pública + privada) com libsodium.
-//   2. Guardar a chave PRIVADA de forma segura no aparelho (Android Keystore),
-//      pra ela NUNCA sair daqui.
-//   3. Enviar só a chave PÚBLICA ao servidor no registro.
-// ---------------------------------------------------------------------------
-object DeviceKeys {
+// DeviceKeys — acesso às chaves de criptografia do aparelho.
+class DeviceKeys(private val keyStore: KeyStore) {
 
-    // Gera um "public key" temporário (só aleatoriedade em base64).
-    fun placeholderPublicKey(): String {
-        val bytes = ByteArray(32)
-        SecureRandom().nextBytes(bytes)
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    // Retorna a chave pública do usuário (enviada no registro).
+    suspend fun publicKey(): String {
+        val pair = keyStore.getOrGenerateKeyPair()
+        return pair.publicKeyPem
+    }
+
+    // Retorna a chave privada (usada pra descriptografar mensagens recebidas).
+    suspend fun privateKey(): String? {
+        return keyStore.getPrivateKey()
+    }
+
+    companion object {
+        // Factory pra criar a partir de um contexto.
+        fun create(context: Context): DeviceKeys {
+            return DeviceKeys(KeyStore(context))
+        }
     }
 }

@@ -68,7 +68,7 @@ func main() {
 		return tokens.RequireAuth(fn)
 	}
 	mux.Handle("GET /api/me", protected(h.Me))
-	mux.Handle("GET /api/users/", protected(h.GetUserByUsername)) // /api/users/{username}
+	mux.Handle("GET /api/users/", protected(h.GetUser)) // /api/users/{id|username}
 
 	// Conta (tela Account details): atualizar perfil, trocar/conferir senha,
 	// apagar conta. As ações sensíveis pedem a senha de novo por dentro.

@@ -3,7 +3,6 @@ package com.privatemessenger.app.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.privatemessenger.app.data.ApiException
-import com.privatemessenger.app.data.DeviceKeys
 import com.privatemessenger.app.data.MessengerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,11 +47,9 @@ class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
             _state.value = AuthUiState(loading = true)
             try {
                 if (isRegister) {
-                    val publicKey = DeviceKeys.placeholderPublicKey()
                     repo.register(
                         username.trim(),
                         password,
-                        publicKey,
                         name = name.trim().ifBlank { null },
                         birthday = birthday.trim().ifBlank { null },
                     )

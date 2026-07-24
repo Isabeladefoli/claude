@@ -1,6 +1,7 @@
 package com.privatemessenger.app.data
 
 import android.content.Context
+import com.privatemessenger.app.crypto.CryptoUtils
 import com.privatemessenger.app.i18n.AppLanguage
 import com.privatemessenger.app.ui.theme.ChatWallpaper
 import com.privatemessenger.app.ui.theme.FontSize
@@ -19,6 +20,7 @@ class MessengerRepository(context: Context) {
     private val appContext = context.applicationContext
     private val tokenStore = TokenStore(appContext)
     private val api = ApiClient(tokenStore)
+    private val deviceKeys = DeviceKeys.create(appContext)
 
     // Um escopo de corrotinas próprio pra tarefas de fundo (ex: o WebSocket).
     private val scope = CoroutineScope(SupervisorJob())
@@ -49,11 +51,13 @@ class MessengerRepository(context: Context) {
     suspend fun register(
         username: String,
         password: String,
-        publicKey: String,
+        publicKey: String? = null,
         name: String? = null,
         birthday: String? = null,
     ): AuthResponse {
-        val auth = api.register(RegisterRequest(username, password, publicKey, name, birthday))
+        // Se não passou public key, gera e salva um novo par de chaves.
+        val key = publicKey ?: deviceKeys.publicKey()
+        val auth = api.register(RegisterRequest(username, password, key, name, birthday))
         realtime.start() // já conecta o tempo real após entrar
         return auth
     }
@@ -132,6 +136,9 @@ class MessengerRepository(context: Context) {
 
     suspend fun findUser(username: String): User = api.findUser(username)
 
+    // Busca a chave pública de um usuário pelo ID (necessário pra descriptografar).
+    suspend fun findUserById(userId: Long): User = api.findUser(userId.toString())
+
     // --- Contatos e chats (todos/salvos/não salvos) ---
 
     suspend fun listChats(): List<ChatItem> = api.listChats()
@@ -154,26 +161,41 @@ class MessengerRepository(context: Context) {
     suspend fun unblockUser(id: Long) = api.unblockUser(id)
     suspend fun reportUser(id: Long, reason: String) = api.reportUser(id, reason)
 
-    // Envia uma mensagem 1-a-1.
-    //
-    // >>> É AQUI que a criptografia E2E vai entrar no próximo passo. <<<
-    // Hoje (fluxo primeiro) mandamos o texto direto no campo ciphertext. Depois,
-    // vamos: pegar a chave pública do destinatário, criptografar `text` com
-    // libsodium, e mandar o resultado embaralhado no lugar. O resto do app não
-    // precisa mudar.
+    // Envia uma mensagem 1-a-1, criptografada com E2E.
+    // 1. Busca a chave pública do destinatário (para derivar a chave compartilhada)
+    // 2. Criptografa o texto com AES-256-GCM via ECDH
+    // 3. Envia ciphertext + nonce
     suspend fun sendMessage(recipientId: Long, text: String): Message {
-        val ciphertext = text          // TODO E2E: substituir por criptografia real
-        val nonce = "plaintext"        // TODO E2E: nonce gerado pela criptografia
-        return api.sendMessage(recipientId, ciphertext, nonce)
+        val recipient = api.findUser(recipientId.toString()) ?: throw ApiException(404, "destinatário não encontrado")
+        val senderPrivateKey = deviceKeys.privateKey() ?: throw ApiException(500, "chave privada não disponível")
+
+        val encrypted = CryptoUtils.encrypt(
+            plaintext = text,
+            recipientPublicKeyBase64 = recipient.publicKey,
+            senderPrivateKeyBase64 = senderPrivateKey,
+        )
+
+        return api.sendMessage(recipientId, encrypted.ciphertext, encrypted.nonce)
     }
 
     // Apaga uma mensagem (só a própria, o servidor confere).
     suspend fun deleteMessage(id: Long) = api.deleteMessage(id)
 
-    // Edita o texto de uma mensagem (só a própria).
-    suspend fun editMessage(id: Long, text: String) = api.editMessage(id, text, "plaintext")
+    // Edita o texto de uma mensagem (só a própria, criptografada).
+    suspend fun editMessage(id: Long, text: String) {
+        val senderPrivateKey = deviceKeys.privateKey() ?: throw ApiException(500, "chave privada não disponível")
+        // Assumimos que o usuário que tá editando é o que mandou (verificado no servidor).
+        // Pegamos a chave pública dele mesmo pra fazer ECDH com a privada (simétrico).
+        val me = me()
+        val encrypted = CryptoUtils.encrypt(
+            plaintext = text,
+            recipientPublicKeyBase64 = me.publicKey,
+            senderPrivateKeyBase64 = senderPrivateKey,
+        )
+        api.editMessage(id, encrypted.ciphertext, encrypted.nonce)
+    }
 
-    // Sobe um arquivo e manda como mensagem de mídia (foto/áudio) para a conversa.
+    // Sobe um arquivo e manda como mensagem de mídia (foto/áudio) para a conversa, criptografada.
     suspend fun sendMediaMessage(
         recipientId: Long,
         bytes: ByteArray,
@@ -182,13 +204,31 @@ class MessengerRepository(context: Context) {
         kind: String,
     ): Message {
         val path = api.uploadMedia(bytes, filename, mime).url
-        return api.sendMessage(recipientId, MediaMessage.encode(kind, path), "plaintext")
+        val mediaText = MediaMessage.encode(kind, path)
+        return sendMessage(recipientId, mediaText)
     }
 
-    // Converte o conteúdo de uma mensagem pra texto exibível.
-    // Hoje é só devolver o ciphertext (que ainda é texto puro). Depois será:
-    // descriptografar com a chave privada e devolver o texto original.
-    fun decryptForDisplay(message: Message): String {
-        return message.ciphertext     // TODO E2E: descriptografar de verdade
+    // Descriptografa uma mensagem pra exibição.
+    // Se o texto for de mídia (foto/áudio), retorna a URI encodada.
+    suspend fun decryptForDisplay(message: Message): String {
+        try {
+            val senderPublicKey = if (message.senderId > 0) {
+                findUserById(message.senderId).publicKey
+            } else {
+                return message.ciphertext // fallback: texto puro
+            }
+
+            val myPrivateKey = deviceKeys.privateKey() ?: return message.ciphertext
+
+            return CryptoUtils.decrypt(
+                ciphertext = message.ciphertext,
+                nonce = message.nonce,
+                senderPublicKeyBase64 = senderPublicKey,
+                recipientPrivateKeyBase64 = myPrivateKey,
+            )
+        } catch (e: Exception) {
+            // Se descriptografar falhar, retorna um aviso.
+            return "[Erro ao descriptografar: ${e.message}]"
+        }
     }
 }

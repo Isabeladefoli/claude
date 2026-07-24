@@ -250,14 +250,9 @@ private fun ChatRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 // Prévia da última mensagem, ou marca de contato salvo sem conversa.
-                // Se a última for mídia, mostramos "Foto"/"Áudio" no lugar do
-                // conteúdo cru.
+                // Nota: a mensagem está criptografada E2E, então mostramos um placeholder.
                 val preview = chat.lastMessage?.let { m ->
-                    when (MediaMessage.parse(m.ciphertext)?.first) {
-                        MediaMessage.IMAGE -> s.photo
-                        MediaMessage.AUDIO -> s.audio
-                        else -> m.ciphertext
-                    }
+                    "[${s.messageEncrypted}]"
                 } ?: if (chat.saved) s.savedContact else ""
                 if (preview.isNotEmpty()) {
                     Text(

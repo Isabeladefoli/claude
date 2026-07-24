@@ -176,10 +176,10 @@ fun ChatScreen(
                 val msg = state.messages[index]
                 val mine = msg.senderId == state.myUserId
                 MessageBubble(
-                    text = vm.displayText(msg),
+                    text = msg.text,
                     mine = mine,
                     onDelete = { vm.deleteMessage(msg) },
-                    onEdit = { editingId = msg.id; draft = vm.displayText(msg) },
+                    onEdit = { editingId = msg.id; draft = msg.text },
                     onExpandImage = { url -> expandUrl = url },
                 )
             }
