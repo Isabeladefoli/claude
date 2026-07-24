@@ -3,8 +3,8 @@ package handlers
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/isabeladefoli/private-messenger/backend/internal/auth"
@@ -43,7 +43,7 @@ func (h *Handlers) GetUser(w http.ResponseWriter, r *http.Request) {
 	var u models.User
 
 	// Tenta parsear como ID primeiro.
-	if userID, err := fmt.Sscanf(param, "%d"); err == nil && userID > 0 {
+	if userID, err := strconv.ParseInt(param, 10, 64); err == nil && userID > 0 {
 		err := h.DB.QueryRow(
 			`SELECT id, username, name, public_key, avatar_url, created_at
 			 FROM users WHERE id = ?`,

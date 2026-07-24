@@ -184,14 +184,14 @@ class MessengerRepository(context: Context) {
     suspend fun deleteMessage(id: Long) = api.deleteMessage(id)
 
     // Edita o texto de uma mensagem (só a própria, criptografada).
-    suspend fun editMessage(id: Long, text: String) {
+    // Precisa do destinatário pra criptografar do mesmo jeito que o envio original:
+    // minha_privada + publica_do_destinatario (ECDH simétrico).
+    suspend fun editMessage(id: Long, recipientId: Long, text: String) {
+        val recipient = api.findUser(recipientId.toString()) ?: throw ApiException(404, "destinatário não encontrado")
         val senderPrivateKey = deviceKeys.privateKey() ?: throw ApiException(500, "chave privada não disponível")
-        // Assumimos que o usuário que tá editando é o que mandou (verificado no servidor).
-        // Pegamos a chave pública dele mesmo pra fazer ECDH com a privada (simétrico).
-        val me = me()
         val encrypted = CryptoUtils.encrypt(
             plaintext = text,
-            recipientPublicKeyBase64 = me.publicKey,
+            recipientPublicKeyBase64 = recipient.publicKey,
             senderPrivateKeyBase64 = senderPrivateKey,
         )
         api.editMessage(id, encrypted.ciphertext, encrypted.nonce)
@@ -214,18 +214,22 @@ class MessengerRepository(context: Context) {
     // Se o texto for de mídia (foto/áudio), retorna a URI encodada.
     suspend fun decryptForDisplay(message: Message): String {
         try {
-            val senderPublicKey = if (message.senderId > 0) {
-                findUserById(message.senderId).publicKey
-            } else {
-                return message.ciphertext // fallback: texto puro
+            // O segredo ECDH é simétrico: depende do par {eu, outro}, não de quem
+            // enviou. O "outro" é o destinatário quando EU enviei, ou o remetente
+            // quando eu recebi. Sempre usamos: minha_privada + publica_do_OUTRO.
+            val myId = currentUserId()
+            val otherId = if (message.senderId == myId) message.recipientId else message.senderId
+            if (otherId == null || otherId <= 0) {
+                return message.ciphertext // fallback: sem par definido (ex: mensagem de grupo)
             }
 
+            val otherPublicKey = findUserById(otherId).publicKey
             val myPrivateKey = deviceKeys.privateKey() ?: return message.ciphertext
 
             return CryptoUtils.decrypt(
                 ciphertext = message.ciphertext,
                 nonce = message.nonce,
-                senderPublicKeyBase64 = senderPublicKey,
+                senderPublicKeyBase64 = otherPublicKey,
                 recipientPrivateKeyBase64 = myPrivateKey,
             )
         } catch (e: Exception) {

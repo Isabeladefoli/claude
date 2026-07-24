@@ -72,7 +72,7 @@ func (n *FCMNotifier) NotifyNewMessage(ctx context.Context, userID int64, sender
 		// iOS: silent se desligado, senão toca
 		APNS: &messaging.APNSConfig{
 			Payload: &messaging.APNSPayload{
-				Aps: &messaging.APS{
+				Aps: &messaging.Aps{
 					Sound: "default",
 				},
 			},

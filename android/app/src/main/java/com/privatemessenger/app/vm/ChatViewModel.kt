@@ -156,7 +156,7 @@ class ChatViewModel(
         if (t.isEmpty()) return
         viewModelScope.launch {
             try {
-                repo.editMessage(id, t)
+                repo.editMessage(id, partnerId, t)
                 _state.value = _state.value.copy(
                     messages = _state.value.messages.map {
                         if (it.id == id) it.copy(text = t) else it
