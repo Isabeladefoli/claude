@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/isabeladefoli/private-messenger/backend/internal/auth"
@@ -36,5 +37,6 @@ func (h *Handlers) RegisterDeviceToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[device] token FCM registrado para usuário %d", userID)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

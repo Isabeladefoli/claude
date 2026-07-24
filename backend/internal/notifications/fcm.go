@@ -50,9 +50,14 @@ func (n *FCMNotifier) NotifyNewMessage(ctx context.Context, userID int64, sender
 	}
 
 	if len(tokens) == 0 {
-		// Usuário não tem nenhum device registrado ou não liga notificações.
+		// Usuário não tem nenhum device registrado. Sem token, não há pra onde
+		// enviar — provavelmente o destinatário não fez login desde que o
+		// registro de token passou a existir, ou o registro falhou no app.
+		log.Printf("[fcm] usuário %d não tem device token registrado — nada enviado", userID)
 		return nil
 	}
+
+	log.Printf("[fcm] enviando notificação para usuário %d (%d device(s))", userID, len(tokens))
 
 	// Envia pra todos os devices dele.
 	message := &messaging.MulticastMessage{
@@ -81,15 +86,31 @@ func (n *FCMNotifier) NotifyNewMessage(ctx context.Context, userID int64, sender
 
 	resp, err := n.fcm.SendMulticast(ctx, message)
 	if err != nil {
+		log.Printf("[fcm] ERRO ao enviar para usuário %d: %v", userID, err)
 		return fmt.Errorf("enviando via FCM: %w", err)
 	}
 
-	// Log simples de sucesso/falha.
+	// Log de sucesso/falha. Em caso de falha, mostra o motivo exato de cada
+	// token (ex: token inválido/expirado) e remove tokens mortos do banco.
 	if resp.SuccessCount > 0 {
-		log.Printf("[fcm] %d notificações enviadas ao usuário %d", resp.SuccessCount, userID)
+		log.Printf("[fcm] %d notificação(ões) enviada(s) ao usuário %d", resp.SuccessCount, userID)
 	}
 	if resp.FailureCount > 0 {
-		log.Printf("[fcm] %d falhas ao notificar usuário %d", resp.FailureCount, userID)
+		log.Printf("[fcm] %d falha(s) ao notificar usuário %d:", resp.FailureCount, userID)
+		for i, r := range resp.Responses {
+			if r.Success {
+				continue
+			}
+			log.Printf("[fcm]   - token %d: %v", i, r.Error)
+			// Se o token não é mais válido, tira do banco pra não tentar de novo.
+			if messaging.IsRegistrationTokenNotRegistered(r.Error) || messaging.IsInvalidArgument(r.Error) {
+				if _, delErr := n.db.ExecContext(ctx,
+					`DELETE FROM device_tokens WHERE token = ?`, tokens[i],
+				); delErr == nil {
+					log.Printf("[fcm]     (token inválido removido do banco)")
+				}
+			}
+		}
 	}
 
 	return nil
