@@ -6,7 +6,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.privatemessenger.app.R
 
 // Serviço que recebe notificações push do Firebase Cloud Messaging.
 // Chamado automaticamente quando uma mensagem chega (app em foreground ou background).
@@ -54,7 +53,7 @@ class MessagingService : FirebaseMessagingService() {
 
         // Constrói a notificação.
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // seu app icon aqui
+            .setSmallIcon(android.R.drawable.stat_notify_chat) // ícone de chat nativo do Android
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
