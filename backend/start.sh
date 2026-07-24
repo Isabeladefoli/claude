@@ -11,4 +11,16 @@ if [ ! -f "$SECRET_FILE" ]; then
 fi
 export MSG_JWT_SECRET=$(cat "$SECRET_FILE")
 
+# Notificações push: procura a chave de conta de serviço do Firebase na pasta
+# do backend (service-account.json ou o nome que o Firebase baixa). Se achar,
+# liga o envio real de push; se não achar, o servidor sobe em modo "mock"
+# (mensagens funcionam, só não chegam notificações com o app fechado).
+FCM_KEY=$(ls service-account.json *firebase-adminsdk*.json 2>/dev/null | head -1)
+if [ -n "$FCM_KEY" ]; then
+  export MSG_FCM_CREDENTIALS="$(pwd)/$FCM_KEY"
+  echo "Firebase encontrado: $FCM_KEY (notificações push ligadas)"
+else
+  echo "AVISO: nenhuma chave do Firebase encontrada — notificações em modo mock."
+fi
+
 go run ./cmd/server
