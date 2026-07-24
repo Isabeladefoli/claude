@@ -14,17 +14,17 @@ import javax.crypto.spec.SecretKeySpec
 
 // E2E encryption utilities: gera chaves, faz ECDH, criptografa/descriptografa com AES-256-GCM.
 
-data class KeyPair(
-    val publicKeyPem: String,  // base64 da chave pública codificada
-    val privateKeyPem: String, // base64 da chave privada codificada
-)
-
-data class EncryptedMessage(
-    val ciphertext: String, // base64
-    val nonce: String,      // base64
-)
-
 object CryptoUtils {
+    data class KeyPair(
+        val publicKeyPem: String,  // base64 da chave pública codificada
+        val privateKeyPem: String, // base64 da chave privada codificada
+    )
+
+    data class EncryptedMessage(
+        val ciphertext: String, // base64
+        val nonce: String,      // base64
+    )
+
     private const val KEY_ALGORITHM = "EC"
     private const val CURVE_NAME = "prime256v1" // P-256, amplamente suportado
     private const val AGREEMENT_ALGORITHM = "ECDH"
