@@ -64,6 +64,15 @@ class MessengerRepository(context: Context) {
 
     suspend fun login(username: String, password: String): AuthResponse {
         val auth = api.login(LoginRequest(username, password))
+        // Garante que este aparelho tem um par de chaves. Se não tiver (ex: app
+        // reinstalado ou login num aparelho novo), gera um novo par e atualiza a
+        // chave pública no servidor pra que outros consigam cifrar mensagens pra
+        // este usuário. Sem isso, faltaria a chave privada pra cifrar/decifrar.
+        val hadKeys = deviceKeys.hasKeys()
+        val publicKey = deviceKeys.publicKey() // gera e salva se ainda não existir
+        if (!hadKeys) {
+            runCatching { api.updateProfile(UpdateProfileRequest(publicKey = publicKey)) }
+        }
         realtime.start()
         return auth
     }

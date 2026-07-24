@@ -17,6 +17,9 @@ class DeviceKeys(private val keyStore: KeyStore) {
         return keyStore.getPrivateKey()
     }
 
+    // Diz se este aparelho já tem um par de chaves salvo.
+    suspend fun hasKeys(): Boolean = keyStore.hasKeyPair()
+
     companion object {
         // Factory pra criar a partir de um contexto.
         fun create(context: Context): DeviceKeys {

@@ -57,6 +57,7 @@ type updateProfileRequest struct {
 	Name      *string `json:"name,omitempty"`
 	Birthday  *string `json:"birthday,omitempty"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
+	PublicKey *string `json:"public_key,omitempty"` // atualizada quando o aparelho gera novo par de chaves
 }
 
 // UpdateProfile atualiza nome de usuário, nome de exibição, aniversário e/ou
@@ -94,6 +95,13 @@ func (h *Handlers) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	if req.AvatarURL != nil {
 		sets = append(sets, "avatar_url = ?")
 		args = append(args, trimmedOrNil(req.AvatarURL))
+	}
+	if req.PublicKey != nil {
+		pk := strings.TrimSpace(*req.PublicKey)
+		if pk != "" {
+			sets = append(sets, "public_key = ?")
+			args = append(args, pk)
+		}
 	}
 
 	if len(sets) == 0 {

@@ -41,6 +41,12 @@ class KeyStore(private val context: Context) {
         return context.dataStore.data.map { it[PRIVATE_KEY] }.first()
     }
 
+    // Diz se este aparelho já tem um par de chaves salvo.
+    suspend fun hasKeyPair(): Boolean {
+        val prefs = context.dataStore.data.first()
+        return prefs[PUBLIC_KEY] != null && prefs[PRIVATE_KEY] != null
+    }
+
     // Fluxo reativo da chave pública (útil pra UI, se necessário).
     fun publicKeyFlow() = context.dataStore.data.map { it[PUBLIC_KEY] }
 }

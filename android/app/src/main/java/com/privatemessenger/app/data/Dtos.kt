@@ -143,6 +143,7 @@ data class UpdateProfileRequest(
     val name: String? = null,
     val birthday: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
+    @SerialName("public_key") val publicKey: String? = null,
 )
 
 @Serializable
