@@ -91,6 +91,12 @@ func (h *Handlers) SendMessage(w http.ResponseWriter, r *http.Request) {
 		h.Hub.SendToUser(senderID, payload)
 	}
 
+	// Envia notificação push se o destinatário tem devices registrados.
+	senderUser, err := h.getUserByID(senderID)
+	if err == nil && h.Notifier != nil {
+		_ = h.Notifier.NotifyNewMessage(r.Context(), req.RecipientID, senderUser.Username)
+	}
+
 	writeJSON(w, http.StatusCreated, msg)
 }
 

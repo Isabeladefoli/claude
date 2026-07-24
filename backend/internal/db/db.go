@@ -156,6 +156,17 @@ func migrate(db *sql.DB) error {
 		body        TEXT    NOT NULL,
 		created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+
+	-- Device tokens pra notificações push (FCM). Um usuário pode ter múltiplos
+	-- aparelhos (multi-device), cada um com seu token.
+	CREATE TABLE IF NOT EXISTS device_tokens (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token      TEXT    NOT NULL UNIQUE, -- token do FCM
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);
 	`
 
 	if _, err := db.Exec(schema); err != nil {

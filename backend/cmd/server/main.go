@@ -19,6 +19,7 @@ import (
 	"github.com/isabeladefoli/private-messenger/backend/internal/db"
 	"github.com/isabeladefoli/private-messenger/backend/internal/handlers"
 	"github.com/isabeladefoli/private-messenger/backend/internal/mail"
+	"github.com/isabeladefoli/private-messenger/backend/internal/notifications"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ratelimit"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ws"
 )
@@ -49,6 +50,9 @@ func main() {
 		log.Println("envio de e-mail desligado (defina MSG_SMTP_USER/MSG_SMTP_PASS pra ativar)")
 	}
 
+	// Notificações push (por enquanto só loga; FCM de verdade depois).
+	h.Notifier = notifications.New(database, nil)
+
 	// 4) Define as rotas. Usamos o roteador padrão do Go 1.22+, que já entende
 	//    métodos (GET/POST) e parâmetros no caminho ({otherID}).
 	mux := http.NewServeMux()
@@ -69,6 +73,7 @@ func main() {
 	}
 	mux.Handle("GET /api/me", protected(h.Me))
 	mux.Handle("GET /api/users/", protected(h.GetUser)) // /api/users/{id|username}
+	mux.Handle("POST /api/device/token", protected(h.RegisterDeviceToken))
 
 	// Conta (tela Account details): atualizar perfil, trocar/conferir senha,
 	// apagar conta. As ações sensíveis pedem a senha de novo por dentro.

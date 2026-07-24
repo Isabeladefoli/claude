@@ -103,6 +103,15 @@ class ApiClient(private val tokenStore: TokenStore) {
         return resp.body()
     }
 
+    suspend fun registerDeviceToken(token: String) {
+        val resp = http.post(url("/api/device/token")) {
+            header("Authorization", authHeader())
+            contentType(ContentType.Application.Json)
+            setBody(DeviceTokenRequest(token))
+        }
+        if (resp.status != HttpStatusCode.OK) fail(resp)
+    }
+
     suspend fun findUser(username: String): User {
         val resp = http.get(url("/api/users/$username")) {
             header("Authorization", authHeader())

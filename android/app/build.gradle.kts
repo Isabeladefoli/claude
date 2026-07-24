@@ -39,7 +39,15 @@ android {
     }
 }
 
+plugins {
+    id("com.google.gms.google-services") version "4.4.0" // para o Firebase
+}
+
 dependencies {
+    // --- Firebase (push notifications) ---
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation("com.google.firebase:firebase-messaging")
+
     // --- Jetpack Compose (a interface do app) ---
     // A "BOM" (Bill of Materials) garante que todas as libs do Compose usem
     // versões compatíveis entre si.

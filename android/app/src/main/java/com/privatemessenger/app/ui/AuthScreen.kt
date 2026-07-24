@@ -63,10 +63,10 @@ import kotlinx.coroutines.launch
 // nome e aniversário (com seletor de data).
 @Composable
 fun AuthScreen(repo: MessengerRepository) {
-    val vm: AuthViewModel = viewModel(factory = authViewModelFactory(repo))
+    val context = LocalContext.current
+    val vm: AuthViewModel = viewModel(factory = authViewModelFactory(repo, context))
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val s = LocalStrings.current
 
     var isRegister by remember { mutableStateOf(false) }

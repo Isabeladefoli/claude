@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Gravar áudio (mensagens de voz). Pedimos ao usuário na hora de gravar. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Notificações push. Android 13+ exige permissão explícita. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -24,5 +26,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Serviço que recebe notificações push do Firebase. -->
+        <service
+            android:name=".firebase.MessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

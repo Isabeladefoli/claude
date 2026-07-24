@@ -10,6 +10,7 @@ import (
 
 	"github.com/isabeladefoli/private-messenger/backend/internal/auth"
 	"github.com/isabeladefoli/private-messenger/backend/internal/mail"
+	"github.com/isabeladefoli/private-messenger/backend/internal/notifications"
 	"github.com/isabeladefoli/private-messenger/backend/internal/ws"
 )
 
@@ -26,6 +27,9 @@ type Handlers struct {
 
 	// Envio de e-mail (denúncias/reports). Se não configurado, fica inativo.
 	Mailer mail.Mailer
+
+	// Notificações push. Se não configurado, notificações são logadas localmente.
+	Notifier *notifications.FCMNotifier
 }
 
 func New(db *sql.DB, tokens *auth.TokenManager, hub *ws.Hub) *Handlers {

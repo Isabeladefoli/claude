@@ -1,9 +1,11 @@
 package com.privatemessenger.app.vm
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.privatemessenger.app.data.ApiException
 import com.privatemessenger.app.data.MessengerRepository
+import com.privatemessenger.app.firebase.PushNotifications
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +23,7 @@ data class AuthUiState(
     val error: String? = null,
 )
 
-class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
+class AuthViewModel(private val repo: MessengerRepository, private val context: Context) : ViewModel() {
 
     private val _state = MutableStateFlow(AuthUiState())
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
@@ -65,6 +67,8 @@ class AuthViewModel(private val repo: MessengerRepository) : ViewModel() {
                 } else {
                     repo.login(username.trim(), password)
                 }
+                // Registra o device token pro Firebase após login bem-sucedido.
+                PushNotifications.registerDeviceToken(context, repo)
                 // Sucesso: o app reage sozinho ao token que apareceu no fluxo de
                 // sessão; aqui só limpamos o estado de carregamento.
                 _state.value = AuthUiState()

@@ -68,6 +68,8 @@ class MessengerRepository(context: Context) {
         return auth
     }
 
+    suspend fun registerDeviceToken(token: String) = api.registerDeviceToken(token)
+
     suspend fun logout() {
         realtime.stop()
         tokenStore.clear()

@@ -182,6 +182,11 @@ data class ErrorResponse(
     val error: String,
 )
 
+@Serializable
+data class DeviceTokenRequest(
+    val token: String,
+)
+
 // Envelope do WebSocket: { "type": "message", "data": {...} }. O "type" diz o
 // que chegou; "data" carrega o conteúdo (uma Message, no caso de mensagens).
 @Serializable
