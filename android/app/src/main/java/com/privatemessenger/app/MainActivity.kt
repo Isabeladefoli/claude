@@ -1,9 +1,14 @@
 package com.privatemessenger.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
@@ -45,6 +50,11 @@ import kotlinx.coroutines.launch
 // ---------------------------------------------------------------------------
 class MainActivity : ComponentActivity() {
 
+    // Pedido de permissão de notificação (Android 13+). O resultado em si não
+    // muda nada aqui: se negar, só não aparecem notificações.
+    private val askNotificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* ignora */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -52,8 +62,23 @@ class MainActivity : ComponentActivity() {
         // Se já havia sessão salva, religa o tempo real ao abrir o app.
         repo.resumeRealtimeIfLoggedIn()
 
+        // Pede permissão de notificação em aparelhos Android 13+ (antes disso a
+        // permissão é concedida automaticamente pela declaração no manifest).
+        requestNotificationPermissionIfNeeded()
+
         setContent {
             App(repo, onLogoutCleanup = { viewModelStore.clear() })
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                askNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 }

@@ -14,6 +14,10 @@ import (
 	"syscall"
 	"time"
 
+	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/messaging"
+	"google.golang.org/api/option"
+
 	"github.com/isabeladefoli/private-messenger/backend/internal/auth"
 	"github.com/isabeladefoli/private-messenger/backend/internal/config"
 	"github.com/isabeladefoli/private-messenger/backend/internal/db"
@@ -50,8 +54,11 @@ func main() {
 		log.Println("envio de e-mail desligado (defina MSG_SMTP_USER/MSG_SMTP_PASS pra ativar)")
 	}
 
-	// Notificações push (por enquanto só loga; FCM de verdade depois).
-	h.Notifier = notifications.New(database, nil)
+	// Notificações push via Firebase Cloud Messaging.
+	// Precisa da chave de conta de serviço (service account) do Firebase.
+	// Defina o caminho dela em MSG_FCM_CREDENTIALS (ex: /caminho/service-account.json).
+	// Sem isso, as notificações ficam em modo "mock" (só aparecem no log).
+	h.Notifier = notifications.New(database, initFCM())
 
 	// 4) Define as rotas. Usamos o roteador padrão do Go 1.22+, que já entende
 	//    métodos (GET/POST) e parâmetros no caminho ({otherID}).
@@ -155,6 +162,34 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
+}
+
+// initFCM inicializa o cliente do Firebase Cloud Messaging a partir da chave de
+// conta de serviço apontada por MSG_FCM_CREDENTIALS. Se a variável não estiver
+// definida ou a inicialização falhar, retorna nil (as notificações caem em modo
+// "mock": só aparecem no log, sem enviar nada de verdade).
+func initFCM() *messaging.Client {
+	credPath := os.Getenv("MSG_FCM_CREDENTIALS")
+	if credPath == "" {
+		log.Println("notificações push em modo mock (defina MSG_FCM_CREDENTIALS com o caminho da service account pra ativar o envio real)")
+		return nil
+	}
+
+	ctx := context.Background()
+	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(credPath))
+	if err != nil {
+		log.Printf("FCM desligado: erro ao inicializar Firebase (%v)", err)
+		return nil
+	}
+
+	client, err := app.Messaging(ctx)
+	if err != nil {
+		log.Printf("FCM desligado: erro ao obter cliente de mensagens (%v)", err)
+		return nil
+	}
+
+	log.Println("notificações push ATIVAS (Firebase Cloud Messaging)")
+	return client
 }
 
 // securityHeaders adiciona alguns cabeçalhos de segurança em toda resposta.
