@@ -84,7 +84,10 @@ func (n *FCMNotifier) NotifyNewMessage(ctx context.Context, userID int64, sender
 		},
 	}
 
-	resp, err := n.fcm.SendMulticast(ctx, message)
+	// SendEachForMulticast envia cada mensagem individualmente pela API HTTP v1.
+	// (O antigo SendMulticast usava o endpoint /batch, que o Google desativou em
+	// 2024 e agora responde 404.)
+	resp, err := n.fcm.SendEachForMulticast(ctx, message)
 	if err != nil {
 		log.Printf("[fcm] ERRO ao enviar para usuário %d: %v", userID, err)
 		return fmt.Errorf("enviando via FCM: %w", err)
