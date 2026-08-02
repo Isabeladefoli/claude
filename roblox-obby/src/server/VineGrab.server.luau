@@ -45,10 +45,14 @@ local function release(player: Player)
 	hold.weld:Destroy()
 	hold.humanoid.PlatformStand = false
 
-	-- avisa o cliente pra TIRAR a pose de braço erguido
+	-- avisa o cliente pra TIRAR a pose de braço erguido e para de controlar o cipó
 	local character = hold.humanoid.Parent
 	if character then
 		character:SetAttribute("OnVine", false)
+		local vineRef = character:FindFirstChild("CurrentVine")
+		if vineRef then
+			vineRef:Destroy()
+		end
 	end
 
 	-- devolve a "posse" física do cipó pro servidor
@@ -102,9 +106,16 @@ local function grab(player: Player, vine: BasePart, character: Model)
 	-- liga a POSE de braço erguido no cliente (ArmPose.client.luau escuta isso)
 	character:SetAttribute("OnVine", true)
 
-	-- empurrãozinho inicial na direção pra onde o jogador olha, pra já balançar
-	local look = hrp.CFrame.LookVector
-	vine.AssemblyLinearVelocity = Vector3.new(look.X, 0, look.Z).Unit * 14
+	-- o cipó começa PARADO. Quem balança é VOCÊ, com W (frente) e S (trás).
+	-- zera qualquer velocidade pra ele não "escorregar" sozinho ao agarrar.
+	vine.AssemblyLinearVelocity = Vector3.zero
+	vine.AssemblyAngularVelocity = Vector3.zero
+
+	-- avisa o cliente QUAL cipó ele deve controlar (VineControl.client.luau lê)
+	local vineRef = Instance.new("ObjectValue")
+	vineRef.Name = "CurrentVine"
+	vineRef.Value = vine
+	vineRef.Parent = character
 
 	holding[player] = {
 		vine = vine,

@@ -354,7 +354,7 @@ end
 --  MONTAGEM FINAL
 -- ======================================================================
 -- pontos de onde os cipós penduram (sobre a água, alinhados no caminho)
-local VINE_A_ANCHOR = Vector3.new(0, 25, 22)
+local VINE_A_ANCHOR = Vector3.new(0, 25, 16)
 local VINE_B_ANCHOR = Vector3.new(0, 25, -6)
 
 makeTree(TREE_A_BASE, VINE_A_ANCHOR)
@@ -442,10 +442,14 @@ local function release(player: Player)
 	hold.weld:Destroy()
 	hold.humanoid.PlatformStand = false
 
-	-- avisa o cliente pra TIRAR a pose de braço erguido
+	-- avisa o cliente pra TIRAR a pose de braço erguido e para de controlar o cipó
 	local character = hold.humanoid.Parent
 	if character then
 		character:SetAttribute("OnVine", false)
+		local vineRef = character:FindFirstChild("CurrentVine")
+		if vineRef then
+			vineRef:Destroy()
+		end
 	end
 
 	-- devolve a "posse" física do cipó pro servidor
@@ -499,9 +503,16 @@ local function grab(player: Player, vine: BasePart, character: Model)
 	-- liga a POSE de braço erguido no cliente (ArmPose.client.luau escuta isso)
 	character:SetAttribute("OnVine", true)
 
-	-- empurrãozinho inicial na direção pra onde o jogador olha, pra já balançar
-	local look = hrp.CFrame.LookVector
-	vine.AssemblyLinearVelocity = Vector3.new(look.X, 0, look.Z).Unit * 14
+	-- o cipó começa PARADO. Quem balança é VOCÊ, com W (frente) e S (trás).
+	-- zera qualquer velocidade pra ele não "escorregar" sozinho ao agarrar.
+	vine.AssemblyLinearVelocity = Vector3.zero
+	vine.AssemblyAngularVelocity = Vector3.zero
+
+	-- avisa o cliente QUAL cipó ele deve controlar (VineControl.client.luau lê)
+	local vineRef = Instance.new("ObjectValue")
+	vineRef.Name = "CurrentVine"
+	vineRef.Value = vine
+	vineRef.Parent = character
 
 	holding[player] = {
 		vine = vine,
@@ -946,7 +957,7 @@ hint.BackgroundTransparency = 0.25
 hint.TextColor3 = Color3.fromRGB(235, 255, 230)
 hint.Font = Enum.Font.GothamMedium
 hint.TextScaled = true
-hint.Text = "🌿 Encoste no cipó p/ pendurar • Espaço p/ soltar no embalo • Pule de cipó em cipó até o troféu — não caia na água! 🐊"
+hint.Text = "🌿 Encoste no cipó p/ pendurar • W balança pra frente / S pra trás • Espaço solta no embalo • Chegue no troféu sem cair na água! 🐊"
 hint.Parent = gui
 
 local corner = Instance.new("UICorner")
@@ -961,6 +972,98 @@ pad.Parent = hint
       </Properties>
     </Item>
     <Item class="LocalScript" referent="10">
+      <Properties>
+        <string name="Name">VineControl</string>
+        <string name="Source"><![CDATA[--!strict
+-- VineControl.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
+-- =========================================================================
+-- Controla o BALANÇO do cipó enquanto você está pendurado 🌿
+--   * Parado (sem tecla) -> o cipó fica PARADO, só pendurado
+--   * W -> balança PRA FRENTE (na direção pra onde a câmera olha)
+--   * S -> balança PRA TRÁS
+--
+-- Segure W pra ganhar embalo e subir alto; no auge, aperte ESPAÇO
+-- (o VineClient cuida de soltar) pra ser lançado até a próxima ilha. 🚀
+--
+-- Como você é o dono do cipó na rede (o servidor te deu o controle físico),
+-- mexer na velocidade do cipó aqui no cliente fica bem suave.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- afinação do balanço:
+local ACCEL = 75 -- quão rápido ganha força ao segurar W/S
+local MAX_SWING = 55 -- velocidade máxima do balanço (mais alto = balança mais forte)
+
+local forwardHeld = false -- W
+local backHeld = false -- S
+
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.W then
+		forwardHeld = true
+	elseif input.KeyCode == Enum.KeyCode.S then
+		backHeld = true
+	end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.W then
+		forwardHeld = false
+	elseif input.KeyCode == Enum.KeyCode.S then
+		backHeld = false
+	end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+	local character = player.Character
+	if not character or not character:GetAttribute("OnVine") then
+		return
+	end
+	local vineRef = character:FindFirstChild("CurrentVine") :: ObjectValue?
+	local vine = (vineRef and vineRef.Value) :: BasePart?
+	if not vine then
+		return
+	end
+
+	-- "pra frente" = direção pra onde a câmera olha, achatada no plano do chão
+	local look = camera.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	if flat.Magnitude < 0.05 then
+		return
+	end
+	flat = flat.Unit
+
+	local dir = Vector3.zero
+	if forwardHeld then
+		dir += flat
+	end
+	if backHeld then
+		dir -= flat
+	end
+	-- nenhuma tecla -> não empurra nada: o cipó segue só a física
+	-- (se estava parado, continua parado; se balançava, continua o pêndulo)
+	if dir.Magnitude < 0.05 then
+		return
+	end
+	dir = dir.Unit
+
+	-- acelera o balanço na direção escolhida, preservando a subida/descida
+	-- natural do pêndulo (só mexemos na parte horizontal da velocidade).
+	local v = vine.AssemblyLinearVelocity
+	local horiz = Vector3.new(v.X, 0, v.Z) + dir * ACCEL * dt
+	if horiz.Magnitude > MAX_SWING then
+		horiz = horiz.Unit * MAX_SWING
+	end
+	vine.AssemblyLinearVelocity = Vector3.new(horiz.X, v.Y, horiz.Z)
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="LocalScript" referent="11">
       <Properties>
         <string name="Name">ArmPose</string>
         <string name="Source"><![CDATA[--!strict

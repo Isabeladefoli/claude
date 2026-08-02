@@ -10,20 +10,22 @@ Escrito em **Luau**.
 |---|---|
 | 🐊 Lago com jacarés | Água de verdade (terrain) com 5 jacarés que nadam, abrem a boca e **te comem se você cair** |
 | 🌳 Duas árvores | Cada uma com tronco que afina, raízes, galhos e copa de folhagem |
-| 🌿 Dois cipós | Penduram sobre a água e balançam como pêndulo real (física de rótula) |
+| 🌿 Dois cipós | Penduram sobre a água. Parado ele fica parado; **você balança com W/S** (pêndulo com física de rótula) |
 | 🙌 Pose de braço | Ao agarrar, seus dois braços **sobem segurando o cipó** (R6 e R15) |
 | 🏆 Troféu | O objetivo, brilhando na ilha de chegada |
 
 ## Como jogar
 
 1. Você nasce na **ilha de partida**.
-2. Corra e **encoste no 1º cipó** → seu personagem se pendura, os braços sobem
-   e ele começa a **balançar**.
-3. No auge do balanço (indo pra frente), aperte **Espaço** → você solta com o
-   embalo e é **lançado pelo ar** 🚀.
-4. **Agarre o 2º cipó** no meio do voo, balance de novo e solte pra pousar na
-   **ilha de chegada** com o troféu 🏆.
-5. **Caiu na água?** Os jacarés não perdoam — você renasce na partida. 🐊
+2. Corra e **encoste no 1º cipó** → seu personagem se pendura, os braços sobem.
+   O cipó fica **parado** até você mandar.
+3. Segure **W** pra balançar **pra frente** (e **S** pra voltar). Vai e volta
+   pra ganhar **embalo** e subir cada vez mais alto.
+4. No auge do balanço pra frente, aperte **Espaço** → você solta com o embalo
+   e é **lançado pelo ar** 🚀.
+5. **Agarre o 2º cipó** no meio do voo, balance de novo (W) e solte pra pousar
+   na **ilha de chegada** com o troféu 🏆.
+6. **Caiu na água?** Os jacarés não perdoam — você renasce na partida. 🐊
 
 ## Estrutura
 
@@ -40,6 +42,7 @@ roblox-obby/
     │   └── LightingSetup.server.luau <- iluminação de floresta
     └── client/
         ├── VineClient.client.luau    <- "espaço = soltar" + dica na tela
+        ├── VineControl.client.luau   <- W/S balançam o cipó (frente/trás)
         └── ArmPose.client.luau       <- braços erguidos segurando o cipó
 ```
 
@@ -59,6 +62,8 @@ roblox-obby/
 - **Comprimento do cipó:** `World.server.luau`, no `makeVine(..., 15, ...)`.
 - **Força do pulo ao soltar:** `VineGrab.server.luau`, no valor `+ 26` (mais
   alto = voa mais longe) e no `* 1.15` (empurrão horizontal).
+- **Força do balanço (W/S):** `VineControl.client.luau`, nos valores `ACCEL`
+  (quão rápido ganha embalo) e `MAX_SWING` (quão forte balança).
 - **Quantos jacarés / velocidade:** `Crocodiles.server.luau`, `NUM_CROCS` e
   `speed`.
 - **Altura da pose do braço:** `ArmPose.client.luau`, no valor `RAISE`.

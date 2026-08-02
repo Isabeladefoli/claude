@@ -269,7 +269,7 @@ end
 --  MONTAGEM FINAL
 -- ======================================================================
 -- pontos de onde os cipós penduram (sobre a água, alinhados no caminho)
-local VINE_A_ANCHOR = Vector3.new(0, 25, 22)
+local VINE_A_ANCHOR = Vector3.new(0, 25, 16)
 local VINE_B_ANCHOR = Vector3.new(0, 25, -6)
 
 makeTree(TREE_A_BASE, VINE_A_ANCHOR)

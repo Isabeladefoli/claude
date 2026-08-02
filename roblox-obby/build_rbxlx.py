@@ -20,6 +20,7 @@ SERVER_SCRIPTS = [
 ]
 CLIENT_SCRIPTS = [
     ("VineClient", "client/VineClient.client.luau"),
+    ("VineControl", "client/VineControl.client.luau"),
     ("ArmPose", "client/ArmPose.client.luau"),
 ]
 
