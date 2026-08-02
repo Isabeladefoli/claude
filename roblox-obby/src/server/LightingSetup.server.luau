@@ -8,12 +8,12 @@
 
 local Lighting = game:GetService("Lighting")
 
--- horário/tom geral
-Lighting.ClockTime = 14 -- tarde
-Lighting.Brightness = 2 -- (era 2.5 e estourava tudo de branco)
-Lighting.ExposureCompensation = 0 -- sem "super brilho" na câmera
-Lighting.Ambient = Color3.fromRGB(80, 80, 95)
-Lighting.OutdoorAmbient = Color3.fromRGB(140, 145, 165)
+-- horário/tom geral — clima de FLORESTA 🌿
+Lighting.ClockTime = 13 -- sol alto, luz entrando entre as folhas
+Lighting.Brightness = 2
+Lighting.ExposureCompensation = 0
+Lighting.Ambient = Color3.fromRGB(70, 85, 70) -- sombra esverdeada
+Lighting.OutdoorAmbient = Color3.fromRGB(120, 140, 110) -- luz com tom de mata
 Lighting.EnvironmentDiffuseScale = 0.6
 Lighting.EnvironmentSpecularScale = 0.6
 Lighting.GlobalShadows = true
@@ -25,14 +25,14 @@ for _, obj in Lighting:GetChildren() do
 	end
 end
 
--- atmosfera (dá profundidade e neblina bonita ao longe)
+-- atmosfera — neblina esverdeada de floresta ao fundo 🌫️
 local atmosphere = Instance.new("Atmosphere")
-atmosphere.Density = 0.28
+atmosphere.Density = 0.36
 atmosphere.Offset = 0.1
-atmosphere.Color = Color3.fromRGB(199, 200, 219)
-atmosphere.Decay = Color3.fromRGB(106, 112, 152)
-atmosphere.Glare = 0 -- (era o que mais "estourava" o céu de branco)
-atmosphere.Haze = 0.8
+atmosphere.Color = Color3.fromRGB(180, 205, 175)
+atmosphere.Decay = Color3.fromRGB(90, 120, 80)
+atmosphere.Glare = 0
+atmosphere.Haze = 1.6
 atmosphere.Parent = Lighting
 
 -- brilho SÓ nas partes bem neon (moedas, lava, chegada), sem lavar a tela
