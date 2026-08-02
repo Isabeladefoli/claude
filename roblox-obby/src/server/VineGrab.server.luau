@@ -45,15 +45,25 @@ local function release(player: Player)
 	hold.weld:Destroy()
 	hold.humanoid.PlatformStand = false
 
+	-- avisa o cliente pra TIRAR a pose de braço erguido
+	local character = hold.humanoid.Parent
+	if character then
+		character:SetAttribute("OnVine", false)
+	end
+
 	-- devolve a "posse" física do cipó pro servidor
 	pcall(function()
 		hold.vine:SetNetworkOwner(nil)
 	end)
 
-	-- aplica o embalo do balanço + um empurrãozinho pra cima = pulo estiloso
-	hrp.AssemblyLinearVelocity = momentum + Vector3.new(0, 22, 0)
+	-- aplica o embalo do balanço + um empurrãozinho pra cima = pulo estiloso.
+	-- multiplica o embalo horizontal um pouco pra alcançar o próximo cipó 🌿→🌿
+	local flat = Vector3.new(momentum.X, 0, momentum.Z) * 1.15
+	hrp.AssemblyLinearVelocity = flat + Vector3.new(0, math.max(momentum.Y, 0) + 26, 0)
 
-	cooldownUntil[player] = os.clock() + 1.0
+	-- cooldown curto: impede re-grudar no MESMO cipó na hora, mas curto o
+	-- bastante pra você agarrar o PRÓXIMO cipó no meio do voo.
+	cooldownUntil[player] = os.clock() + 0.35
 end
 
 -- agarra o cipó
@@ -88,6 +98,9 @@ local function grab(player: Player, vine: BasePart, character: Model)
 	weld.Parent = vine
 
 	humanoid.PlatformStand = true -- desliga o andar; a física do cipó comanda
+
+	-- liga a POSE de braço erguido no cliente (ArmPose.client.luau escuta isso)
+	character:SetAttribute("OnVine", true)
 
 	-- empurrãozinho inicial na direção pra onde o jogador olha, pra já balançar
 	local look = hrp.CFrame.LookVector

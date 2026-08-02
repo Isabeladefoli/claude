@@ -33,7 +33,7 @@ hint.BackgroundTransparency = 0.25
 hint.TextColor3 = Color3.fromRGB(235, 255, 230)
 hint.Font = Enum.Font.GothamMedium
 hint.TextScaled = true
-hint.Text = "🌿 Encoste no cipó para se pendurar  •  Espaço para soltar"
+hint.Text = "🌿 Encoste no cipó p/ pendurar • Espaço p/ soltar no embalo • Pule de cipó em cipó até o troféu — não caia na água! 🐊"
 hint.Parent = gui
 
 local corner = Instance.new("UICorner")

@@ -81,6 +81,318 @@ dof.Parent = Lighting
     </Item>
     <Item class="Script" referent="4">
       <Properties>
+        <string name="Name">World</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- World.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Monta a cena estilo TARZAN 🐊🌿:
+--   * Uma ilha de partida (onde você nasce) e uma ilha de chegada (o troféu)
+--   * Um LAGO de água de verdade (terrain) no meio, cheio de jacarés
+--   * DUAS árvores, cada uma com o SEU cipó pendurado sobre a água
+--
+-- O objetivo: pular no cipó 1, balançar, se soltar no embalo, agarrar o
+-- cipó 2 no ar e pousar na ilha de chegada — SEM cair na água. 🏆
+--
+-- A lógica de agarrar/soltar fica no VineGrab.server.luau.
+-- Os jacarés e a "morte na água" ficam no Crocodiles.server.luau.
+-- A pose do braço segurando o cipó fica no ArmPose.client.luau.
+-- =========================================================================
+
+local CollectionService = game:GetService("CollectionService")
+local Terrain = workspace.Terrain
+
+-- ---- cores naturais ----
+local BARK = Color3.fromRGB(92, 62, 41)
+local BARK_DARK = Color3.fromRGB(72, 48, 32)
+local LEAF_A = Color3.fromRGB(60, 110, 45)
+local LEAF_B = Color3.fromRGB(84, 142, 58)
+local LEAF_C = Color3.fromRGB(104, 168, 74)
+local VINE_COLOR = Color3.fromRGB(74, 120, 52)
+local SAND = Color3.fromRGB(206, 188, 132)
+local GRASS = Color3.fromRGB(86, 138, 62)
+
+local world = Instance.new("Folder")
+world.Name = "World"
+world.Parent = workspace
+
+-- ======================================================================
+--  Helpers
+-- ======================================================================
+local function make(class: string, props: { [string]: any }): Instance
+	local inst = Instance.new(class)
+	for k, v in props do
+		(inst :: any)[k] = v
+	end
+	inst.Parent = props.Parent or world
+	return inst
+end
+
+local function cylinder(size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material, parent: Instance?): BasePart
+	return make("Part", {
+		Shape = Enum.PartType.Cylinder,
+		Size = size,
+		CFrame = cframe,
+		Color = color,
+		Material = material,
+		Anchored = true,
+		TopSurface = Enum.SurfaceType.Smooth,
+		BottomSurface = Enum.SurfaceType.Smooth,
+		Parent = parent,
+	}) :: BasePart
+end
+
+local function blob(size: Vector3, pos: Vector3, color: Color3, parent: Instance?): BasePart
+	return make("Part", {
+		Shape = Enum.PartType.Ball,
+		Size = size,
+		Position = pos,
+		Color = color,
+		Material = Enum.Material.Grass,
+		Anchored = true,
+		CanCollide = false,
+		Parent = parent,
+	}) :: BasePart
+end
+
+-- ilha redonda de grama sentada logo acima da água
+local function island(center: Vector3, radius: number, name: string): BasePart
+	local top = make("Part", {
+		Name = name,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(3, radius * 2, radius * 2),
+		CFrame = CFrame.new(center) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = GRASS,
+		Material = Enum.Material.Grass,
+		Anchored = true,
+	}) :: BasePart
+	-- praia de areia em volta, um degrau abaixo
+	make("Part", {
+		Name = name .. "_Beach",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2.4, radius * 2 + 6, radius * 2 + 6),
+		CFrame = CFrame.new(center - Vector3.new(0, 1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = SAND,
+		Material = Enum.Material.Sand,
+		Anchored = true,
+	})
+	return top
+end
+
+-- ======================================================================
+--  ÁGUA DE VERDADE (terrain) — o lago dos jacarés 🐊
+-- ======================================================================
+-- superfície da água em y = 0. As ilhas ficam com o topo em y = +1.5.
+Terrain:Clear()
+Terrain:FillBlock(
+	CFrame.new(0, -6, 0),
+	Vector3.new(220, 12, 220),
+	Enum.Material.Water
+)
+
+-- ======================================================================
+--  ILHAS  (partida, chegada e as duas margens das árvores)
+-- ======================================================================
+-- topo das ilhas em y = 1.5 (acima da água)
+local START_ISLAND = Vector3.new(0, 0, 46)
+local GOAL_ISLAND = Vector3.new(0, 0, -46)
+local TREE_A_BASE = Vector3.new(-16, 0, 20) -- margem esquerda
+local TREE_B_BASE = Vector3.new(16, 0, -14) -- margem direita
+
+island(START_ISLAND, 16, "StartIsland")
+island(GOAL_ISLAND, 16, "GoalIsland")
+island(TREE_A_BASE, 9, "TreeIslandA")
+island(TREE_B_BASE, 9, "TreeIslandB")
+
+-- ponto de nascimento na ilha de partida
+make("SpawnLocation", {
+	Size = Vector3.new(8, 1, 8),
+	Position = START_ISLAND + Vector3.new(0, 2, 0),
+	Color = Color3.fromRGB(110, 165, 85),
+	Material = Enum.Material.Grass,
+	Anchored = true,
+})
+
+-- ======================================================================
+--  ÁRVORE 🌳 (função reaproveitável)
+-- ======================================================================
+-- Desenha uma árvore na base dada e estica um galho forte até `anchorPos`,
+-- que é o ponto de onde o cipó vai pendurar.
+local function makeTree(base: Vector3, anchorPos: Vector3)
+	local tree = make("Folder", { Name = "Tree", Parent = world }) :: Folder
+
+	-- tronco: cilindros empilhados que vão afinando
+	local trunkSections = {
+		{ y = 3, r = 4.0 },
+		{ y = 9, r = 3.4 },
+		{ y = 15, r = 2.8 },
+		{ y = 21, r = 2.3 },
+	}
+	for _, s in trunkSections do
+		cylinder(
+			Vector3.new(7, s.r * 2, s.r * 2),
+			CFrame.new(base + Vector3.new(0, s.y, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			s.y < 12 and BARK or BARK_DARK,
+			Enum.Material.Wood,
+			tree
+		)
+	end
+
+	-- raízes na base
+	for i = 0, 5 do
+		local ang = math.rad(i * 60)
+		local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
+		local rootPos = base + dir * 4 + Vector3.new(0, 0.6, 0)
+		cylinder(
+			Vector3.new(5, 1.6, 1.6),
+			CFrame.new(rootPos, rootPos + dir + Vector3.new(0, -0.4, 0)) * CFrame.Angles(0, math.rad(90), 0),
+			BARK_DARK,
+			Enum.Material.Wood,
+			tree
+		)
+	end
+
+	-- galhos decorativos no alto
+	local branches = {
+		{ dir = Vector3.new(1, 0.5, 0.2), len = 11 },
+		{ dir = Vector3.new(-0.8, 0.6, -0.3), len = 10 },
+		{ dir = Vector3.new(0.1, 0.7, 1), len = 9 },
+		{ dir = Vector3.new(-0.2, 0.6, -1), len = 9 },
+	}
+	for _, b in branches do
+		local dir = b.dir.Unit
+		local start = base + Vector3.new(0, 21, 0)
+		local finish = start + dir * b.len
+		local mid = (start + finish) / 2
+		cylinder(
+			Vector3.new(b.len, 1.8, 1.8),
+			CFrame.new(mid, finish) * CFrame.Angles(0, math.rad(90), 0),
+			BARK,
+			Enum.Material.Wood,
+			tree
+		)
+	end
+
+	-- galho FORTE que vai até o ponto do cipó (por cima da água)
+	local branchStart = base + Vector3.new(0, 23, 0)
+	cylinder(
+		Vector3.new((branchStart - anchorPos).Magnitude + 1, 2.2, 2.2),
+		CFrame.new((branchStart + anchorPos) / 2, anchorPos) * CFrame.Angles(0, math.rad(90), 0),
+		BARK,
+		Enum.Material.Wood,
+		tree
+	)
+
+	-- COPA de folhagem
+	local canopy = base + Vector3.new(0, 27, 0)
+	local leafBlobs = {
+		{ Vector3.new(0, 0, 0), 18, LEAF_B },
+		{ Vector3.new(7, -2, 4), 13, LEAF_A },
+		{ Vector3.new(-7, -1, -3), 13, LEAF_C },
+		{ Vector3.new(4, 3, -6), 12, LEAF_C },
+		{ Vector3.new(-5, 2, 6), 12, LEAF_A },
+		{ Vector3.new(0, 5, 0), 12, LEAF_B },
+	}
+	for _, lb in leafBlobs do
+		local off, d, col = lb[1] :: Vector3, lb[2] :: number, lb[3] :: Color3
+		blob(Vector3.new(d, d, d), canopy + off, col, tree)
+	end
+end
+
+-- ======================================================================
+--  CIPÓ 🌿 (função reaproveitável) — pêndulo com física de rótula
+-- ======================================================================
+local function makeVine(anchorPos: Vector3, length: number, index: number)
+	-- ponto fixo no galho (âncora invisível)
+	local pivot = make("Part", {
+		Name = "VinePivot" .. index,
+		Size = Vector3.new(1, 1, 1),
+		Position = anchorPos,
+		Anchored = true,
+		Transparency = 1,
+		CanCollide = false,
+	}) :: BasePart
+	local pivotAtt = make("Attachment", { Parent = pivot }) :: Attachment
+
+	-- o cipó: cilindro comprido, SOLTO, preso ao pivô por uma rótula
+	-- (BallSocket) — balança livre em qualquer direção como pêndulo real.
+	local vine = make("Part", {
+		Name = "Vine" .. index,
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(length, 0.7, 0.7),
+		CFrame = CFrame.new(anchorPos - Vector3.new(0, length / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = VINE_COLOR,
+		Material = Enum.Material.Grass,
+		Anchored = false,
+		CanCollide = false,
+	}) :: BasePart
+
+	-- attachment no TOPO do cipó (o comprimento é o eixo X local)
+	local vineTopAtt = make("Attachment", {
+		Parent = vine,
+		Position = Vector3.new(length / 2, 0, 0),
+	}) :: Attachment
+
+	-- rótula: liga o topo do cipó ao pivô fixo -> vira um pêndulo
+	make("BallSocketConstraint", {
+		Parent = vine,
+		Attachment0 = pivotAtt,
+		Attachment1 = vineTopAtt,
+	})
+
+	-- folhinhas decorativas ao longo do cipó
+	for i = 1, 3 do
+		blob(Vector3.new(2, 2, 2), anchorPos - Vector3.new(0, i * (length / 4), 0), LEAF_A)
+	end
+
+	-- marca com a tag pro script de agarrar reconhecer
+	CollectionService:AddTag(vine, "Grabbable")
+	return vine
+end
+
+-- ======================================================================
+--  MONTAGEM FINAL
+-- ======================================================================
+-- pontos de onde os cipós penduram (sobre a água, alinhados no caminho)
+local VINE_A_ANCHOR = Vector3.new(0, 25, 22)
+local VINE_B_ANCHOR = Vector3.new(0, 25, -6)
+
+makeTree(TREE_A_BASE, VINE_A_ANCHOR)
+makeTree(TREE_B_BASE, VINE_B_ANCHOR)
+
+makeVine(VINE_A_ANCHOR, 15, 1)
+makeVine(VINE_B_ANCHOR, 15, 2)
+
+-- ======================================================================
+--  TROFÉU 🏆 na ilha de chegada
+-- ======================================================================
+local trophyBase = GOAL_ISLAND + Vector3.new(0, 2, 0)
+make("Part", {
+	Name = "TrophyStand",
+	Size = Vector3.new(3, 2, 3),
+	Position = trophyBase + Vector3.new(0, 1, 0),
+	Color = Color3.fromRGB(120, 90, 55),
+	Material = Enum.Material.WoodPlanks,
+	Anchored = true,
+})
+local cup = make("Part", {
+	Name = "Trophy",
+	Shape = Enum.PartType.Ball,
+	Size = Vector3.new(3, 4, 3),
+	Position = trophyBase + Vector3.new(0, 4, 0),
+	Color = Color3.fromRGB(255, 208, 60),
+	Material = Enum.Material.Neon,
+	Anchored = true,
+	CanCollide = false,
+}) :: BasePart
+make("PointLight", { Parent = cup, Color = Color3.fromRGB(255, 220, 120), Brightness = 3, Range = 22 })
+
+print("[Cena] 🐊🌿 Lago, jacarés, 2 árvores e 2 cipós prontos! Balance de cipó em cipó até o troféu.")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="5">
+      <Properties>
         <string name="Name">VineGrab</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[--!strict
@@ -130,15 +442,25 @@ local function release(player: Player)
 	hold.weld:Destroy()
 	hold.humanoid.PlatformStand = false
 
+	-- avisa o cliente pra TIRAR a pose de braço erguido
+	local character = hold.humanoid.Parent
+	if character then
+		character:SetAttribute("OnVine", false)
+	end
+
 	-- devolve a "posse" física do cipó pro servidor
 	pcall(function()
 		hold.vine:SetNetworkOwner(nil)
 	end)
 
-	-- aplica o embalo do balanço + um empurrãozinho pra cima = pulo estiloso
-	hrp.AssemblyLinearVelocity = momentum + Vector3.new(0, 22, 0)
+	-- aplica o embalo do balanço + um empurrãozinho pra cima = pulo estiloso.
+	-- multiplica o embalo horizontal um pouco pra alcançar o próximo cipó 🌿→🌿
+	local flat = Vector3.new(momentum.X, 0, momentum.Z) * 1.15
+	hrp.AssemblyLinearVelocity = flat + Vector3.new(0, math.max(momentum.Y, 0) + 26, 0)
 
-	cooldownUntil[player] = os.clock() + 1.0
+	-- cooldown curto: impede re-grudar no MESMO cipó na hora, mas curto o
+	-- bastante pra você agarrar o PRÓXIMO cipó no meio do voo.
+	cooldownUntil[player] = os.clock() + 0.35
 end
 
 -- agarra o cipó
@@ -173,6 +495,9 @@ local function grab(player: Player, vine: BasePart, character: Model)
 	weld.Parent = vine
 
 	humanoid.PlatformStand = true -- desliga o andar; a física do cipó comanda
+
+	-- liga a POSE de braço erguido no cliente (ArmPose.client.luau escuta isso)
+	character:SetAttribute("OnVine", true)
 
 	-- empurrãozinho inicial na direção pra onde o jogador olha, pra já balançar
 	local look = hrp.CFrame.LookVector
@@ -229,239 +554,364 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="5">
+    <Item class="Script" referent="6">
       <Properties>
-        <string name="Name">World</string>
+        <string name="Name">Crocodiles</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[--!strict
--- World.server.luau  ->  vai em ServerScriptService
+-- Crocodiles.server.luau  ->  vai em ServerScriptService
 -- =========================================================================
--- Monta a cena: chão de grama, uma ÁRVORE caprichada e um CIPÓ pendurado
--- num galho, pronto pra você se segurar e balançar.
+-- Os JACARÉS do lago 🐊
+--   * Nadam sozinhos pela água, com a boca abrindo e fechando (mordida)
+--   * Se você CAIR na água, o jacaré mais perto corre até você e te come
+--     (você "morre" e renasce na ilha de partida)
 --
--- A lógica de "agarrar / soltar" o cipó fica no VineGrab.server.luau.
+-- Tudo montado por código a partir de peças — sem precisar de mesh/asset.
 -- =========================================================================
 
-local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
--- cores naturais
-local BARK = Color3.fromRGB(92, 62, 41)
-local BARK_DARK = Color3.fromRGB(72, 48, 32)
-local LEAF_A = Color3.fromRGB(60, 110, 45)
-local LEAF_B = Color3.fromRGB(84, 142, 58)
-local LEAF_C = Color3.fromRGB(104, 168, 74)
-local VINE_COLOR = Color3.fromRGB(74, 120, 52)
+local SCALE_COLOR = Color3.fromRGB(52, 84, 46) -- verde escuro de jacaré
+local SCALE_DARK = Color3.fromRGB(38, 62, 34)
+local BELLY = Color3.fromRGB(120, 130, 90)
 
-local world = Instance.new("Folder")
-world.Name = "World"
-world.Parent = workspace
+-- Limites da água (a zona de perigo). Fora daqui é ilha/terra firme.
+local WATER = {
+	xMin = -70,
+	xMax = 70,
+	zMin = -34,
+	zMax = 34,
+	surfaceY = 0,
+}
+local LETHAL_Y = 2.5 -- abaixo disso, dentro da água = você tá no lago
 
--- helper de bloco genérico
-local function make(class: string, props: { [string]: any }): Instance
-	local inst = Instance.new(class)
-	for k, v in props do
-		(inst :: any)[k] = v
+local crocs: { Model } = {}
+
+-- ---------------------------------------------------------------------
+-- Constrói UM jacaré (só peças). Retorna o model e a junta da mandíbula.
+-- ---------------------------------------------------------------------
+local function buildCroc(name: string): (Model, BasePart, Motor6D)
+	local model = Instance.new("Model")
+	model.Name = name
+
+	local function part(size: Vector3, color: Color3, shape: Enum.PartType?): BasePart
+		local p = Instance.new("Part")
+		p.Size = size
+		p.Color = color
+		p.Material = Enum.Material.SmoothPlastic
+		p.Shape = shape or Enum.PartType.Block
+		p.Anchored = false
+		p.CanCollide = false
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = model
+		return p
 	end
-	inst.Parent = props.Parent or world
-	return inst
+
+	-- corpo (PrimaryPart) — flutua na superfície
+	local body = part(Vector3.new(3, 1.4, 9), SCALE_COLOR)
+	model.PrimaryPart = body
+
+	-- barriga mais clara
+	local belly = part(Vector3.new(2.6, 0.6, 8.4), BELLY)
+	local bellyWeld = Instance.new("Weld")
+	bellyWeld.Part0 = body
+	bellyWeld.Part1 = belly
+	bellyWeld.C1 = CFrame.new(0, 0.6, 0)
+	bellyWeld.Parent = body
+
+	-- escamas nas costas (fileira de cubinhos)
+	for i = -3, 3 do
+		local scale = part(Vector3.new(1, 0.7, 0.7), SCALE_DARK)
+		scale.Shape = Enum.PartType.Block
+		local w = Instance.new("Weld")
+		w.Part0 = body
+		w.Part1 = scale
+		w.C1 = CFrame.new(0, -0.8, i * 1.1) * CFrame.Angles(0, math.rad(45), 0)
+		w.Parent = body
+	end
+
+	-- cabeça (topo da mandíbula) fixa no corpo, na frente
+	local head = part(Vector3.new(2.6, 1, 4), SCALE_COLOR)
+	local headWeld = Instance.new("Weld")
+	headWeld.Part0 = body
+	headWeld.Part1 = head
+	headWeld.C1 = CFrame.new(0, -0.1, 6) -- frente do corpo
+	headWeld.Parent = body
+
+	-- olhos
+	for _, sx in { -0.8, 0.8 } do
+		local eye = part(Vector3.new(0.6, 0.6, 0.6), Color3.fromRGB(230, 220, 60), Enum.PartType.Ball)
+		local w = Instance.new("Weld")
+		w.Part0 = head
+		w.Part1 = eye
+		w.C1 = CFrame.new(sx, -0.6, -1.2)
+		w.Parent = head
+		local pupil = part(Vector3.new(0.28, 0.36, 0.36), Color3.fromRGB(15, 15, 15), Enum.PartType.Ball)
+		local pw = Instance.new("Weld")
+		pw.Part0 = eye
+		pw.Part1 = pupil
+		pw.C1 = CFrame.new(0, 0, 0.28)
+		pw.Parent = eye
+	end
+
+	-- MANDÍBULA de baixo — presa por Motor6D pra poder abrir/fechar
+	local jaw = part(Vector3.new(2.4, 0.7, 3.6), SCALE_DARK)
+	local jawMotor = Instance.new("Motor6D")
+	jawMotor.Name = "JawMotor"
+	jawMotor.Part0 = head
+	-- pivô na parte de trás da mandíbula (perto da "dobradiça")
+	jawMotor.C0 = CFrame.new(0, -0.5, -1.6)
+	jawMotor.C1 = CFrame.new(0, 0, -1.6)
+	jawMotor.Part1 = jaw
+	jawMotor.Parent = head
+
+	-- dentes (na mandíbula de cima e de baixo)
+	local function teeth(parentPart: BasePart, yOff: number, dir: number)
+		for i = -2, 2 do
+			local tooth = part(Vector3.new(0.28, 0.7, 0.28), Color3.fromRGB(245, 245, 235))
+			local w = Instance.new("Weld")
+			w.Part0 = parentPart
+			w.Part1 = tooth
+			w.C1 = CFrame.new(i * 0.55, yOff, -0.4 + math.abs(i) * 0.3) * CFrame.Angles(math.rad(dir), 0, 0)
+			w.Parent = parentPart
+		end
+	end
+	teeth(head, 0.4, 0)
+	teeth(jaw, -0.35, 180)
+
+	-- patas
+	for _, off in { Vector3.new(-1.7, -0.6, 3), Vector3.new(1.7, -0.6, 3), Vector3.new(-1.7, -0.6, -3), Vector3.new(1.7, -0.6, -3) } do
+		local leg = part(Vector3.new(0.8, 1, 1.6), SCALE_DARK)
+		local w = Instance.new("Weld")
+		w.Part0 = body
+		w.Part1 = leg
+		w.C1 = CFrame.new(off) * CFrame.Angles(0, math.rad(off.X > 0 and 25 or -25), 0)
+		w.Parent = body
+	end
+
+	-- cauda (dois segmentos que afinam)
+	local tail1 = part(Vector3.new(2, 1, 3.5), SCALE_COLOR)
+	local tw1 = Instance.new("Weld")
+	tw1.Part0 = body
+	tw1.Part1 = tail1
+	tw1.C1 = CFrame.new(0, 0, -6)
+	tw1.Parent = body
+	local tail2 = part(Vector3.new(1.2, 0.7, 3), SCALE_DARK)
+	local tw2 = Instance.new("Weld")
+	tw2.Part0 = tail1
+	tw2.Part1 = tail2
+	tw2.C1 = CFrame.new(0, 0, -3)
+	tw2.Parent = tail1
+
+	return model, body, jawMotor
 end
 
-local function cylinder(size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material): BasePart
-	return make("Part", {
-		Shape = Enum.PartType.Cylinder,
-		Size = size,
-		CFrame = cframe,
-		Color = color,
-		Material = material,
-		Anchored = true,
-		TopSurface = Enum.SurfaceType.Smooth,
-		BottomSurface = Enum.SurfaceType.Smooth,
-	}) :: BasePart
-end
-
-local function blob(size: Vector3, pos: Vector3, color: Color3): BasePart
-	return make("Part", {
-		Shape = Enum.PartType.Ball,
-		Size = size,
-		Position = pos,
-		Color = color,
-		Material = Enum.Material.Grass,
-		Anchored = true,
-		CanCollide = false,
-	}) :: BasePart
-end
-
--- ======================================================================
---  CHÃO
--- ======================================================================
-make("Part", {
-	Name = "Ground",
-	Size = Vector3.new(200, 4, 200),
-	Position = Vector3.new(0, -2, 0),
-	Color = Color3.fromRGB(86, 138, 62),
-	Material = Enum.Material.Grass,
-	Anchored = true,
-})
-
--- ponto de nascimento
-make("SpawnLocation", {
-	Size = Vector3.new(8, 1, 8),
-	Position = Vector3.new(0, 0.5, 18),
-	Color = Color3.fromRGB(110, 165, 85),
-	Material = Enum.Material.Grass,
-	Anchored = true,
-})
-
--- ======================================================================
---  A ÁRVORE 🌳
--- ======================================================================
-local treeBase = Vector3.new(0, 0, 0)
-
--- tronco: cilindros empilhados que vão afinando (dá a impressão de tronco real)
-local trunkSections = {
-	{ y = 3, r = 4.0 },
-	{ y = 9, r = 3.4 },
-	{ y = 15, r = 2.8 },
-	{ y = 20, r = 2.2 },
+-- ---------------------------------------------------------------------
+-- Cria N jacarés espalhados pelo lago
+-- ---------------------------------------------------------------------
+type Croc = {
+	model: Model,
+	body: BasePart,
+	jaw: Motor6D,
+	target: Vector3,
+	chasing: Player?,
+	speed: number,
+	phase: number,
 }
-for _, s in trunkSections do
-	-- cilindro em pé = girar 90° no eixo Z (o comprimento do cilindro é o eixo X)
-	local height = 7
-	cylinder(
-		Vector3.new(height, s.r * 2, s.r * 2),
-		CFrame.new(treeBase + Vector3.new(0, s.y, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		s.y < 12 and BARK or BARK_DARK,
-		Enum.Material.Wood
+
+local crocData: { Croc } = {}
+
+local function randomWaterPoint(): Vector3
+	return Vector3.new(
+		math.random(WATER.xMin + 10, WATER.xMax - 10),
+		WATER.surfaceY + 0.3,
+		math.random(WATER.zMin + 6, WATER.zMax - 6)
 	)
 end
 
--- raízes na base (pequenos cilindros inclinados saindo do tronco)
-for i = 0, 5 do
-	local ang = math.rad(i * 60)
-	local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
-	local rootPos = treeBase + dir * 4 + Vector3.new(0, 0.6, 0)
-	cylinder(
-		Vector3.new(5, 1.6, 1.6),
-		CFrame.new(rootPos, rootPos + dir + Vector3.new(0, -0.4, 0)) * CFrame.Angles(0, math.rad(90), 0),
-		BARK_DARK,
-		Enum.Material.Wood
-	)
+local NUM_CROCS = 5
+for i = 1, NUM_CROCS do
+	local model, body, jaw = buildCroc("Croc" .. i)
+	local start = randomWaterPoint()
+	body.CFrame = CFrame.new(start, start + Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)))
+	model.Parent = workspace
+
+	-- deixa o corpo flutuar em pé, sem tombar (junta rígida já mantém tudo unido;
+	-- movemos o corpo direto por CFrame no loop, então mantemos Anchored = false
+	-- mas sem gravidade atrapalhando: usamos AlignPosition/Orientation leves).
+	body.Anchored = true -- movido por código; simples e estável na superfície
+
+	table.insert(crocs, model)
+	table.insert(crocData, {
+		model = model,
+		body = body,
+		jaw = jaw,
+		target = randomWaterPoint(),
+		chasing = nil,
+		speed = 8 + math.random() * 4,
+		phase = math.random() * 10,
+	})
 end
 
--- galhos principais saindo do alto do tronco
-local branches = {
-	{ dir = Vector3.new(1, 0.5, 0.2), len = 12 },
-	{ dir = Vector3.new(-0.8, 0.6, -0.3), len = 11 },
-	{ dir = Vector3.new(0.1, 0.7, 1), len = 10 },
-	{ dir = Vector3.new(-0.2, 0.6, -1), len = 9 },
-}
-for _, b in branches do
-	local dir = b.dir.Unit
-	local start = treeBase + Vector3.new(0, 20, 0)
-	local finish = start + dir * b.len
-	local mid = (start + finish) / 2
-	cylinder(
-		Vector3.new(b.len, 1.8, 1.8),
-		CFrame.new(mid, finish) * CFrame.Angles(0, math.rad(90), 0),
-		BARK,
-		Enum.Material.Wood
-	)
+-- ---------------------------------------------------------------------
+-- Está dentro da água (zona letal)?
+-- ---------------------------------------------------------------------
+local function inWater(pos: Vector3): boolean
+	return pos.Y < LETHAL_Y
+		and pos.X > WATER.xMin
+		and pos.X < WATER.xMax
+		and pos.Z > WATER.zMin
+		and pos.Z < WATER.zMax
 end
 
--- galho FORTE e mais horizontal, de onde o cipó vai pendurar
-local vineBranchStart = treeBase + Vector3.new(0, 22, 0)
-local vineBranchEnd = vineBranchStart + Vector3.new(9, 1.5, 0)
-cylinder(
-	Vector3.new(11, 2.2, 2.2),
-	CFrame.new((vineBranchStart + vineBranchEnd) / 2, vineBranchEnd) * CFrame.Angles(0, math.rad(90), 0),
-	BARK,
-	Enum.Material.Wood
-)
+-- efeito de mordida + morte
+local eaten: { [Player]: boolean } = {}
+local function eat(player: Player, hrp: BasePart)
+	if eaten[player] then
+		return
+	end
+	eaten[player] = true
 
--- COPA: várias bolotas de folha em tons diferentes (parece folhagem de verdade)
-local canopyCenter = treeBase + Vector3.new(0, 26, 0)
-local leafBlobs = {
-	{ Vector3.new(0, 0, 0), 18, LEAF_B },
-	{ Vector3.new(7, -2, 4), 13, LEAF_A },
-	{ Vector3.new(-7, -1, -3), 13, LEAF_C },
-	{ Vector3.new(4, 3, -6), 12, LEAF_C },
-	{ Vector3.new(-5, 2, 6), 12, LEAF_A },
-	{ Vector3.new(0, 5, 0), 12, LEAF_B },
-	{ Vector3.new(9, 1, -2), 10, LEAF_B },
-}
-for _, lb in leafBlobs do
-	local off, d, col = lb[1] :: Vector3, lb[2] :: number, lb[3] :: Color3
-	blob(Vector3.new(d, d, d), canopyCenter + off, col)
+	-- respingo/mordida
+	local splash = Instance.new("Part")
+	splash.Anchored = true
+	splash.CanCollide = false
+	splash.Shape = Enum.PartType.Ball
+	splash.Size = Vector3.new(6, 6, 6)
+	splash.Position = hrp.Position
+	splash.Color = Color3.fromRGB(120, 150, 120)
+	splash.Material = Enum.Material.Water
+	splash.Transparency = 0.3
+	splash.Parent = workspace
+	task.delay(0.4, function()
+		splash:Destroy()
+	end)
+
+	local character = hrp.Parent :: Model?
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.Health = 0
+	end
+	task.delay(2, function()
+		eaten[player] = nil
+	end)
 end
 
--- ======================================================================
---  O CIPÓ 🌿  (pendura no galho e balança como um pêndulo)
--- ======================================================================
--- ponto fixo no galho (âncora do cipó)
-local vineTopPos = Vector3.new(7, 21, 0)
-local pivot = make("Part", {
-	Name = "VinePivot",
-	Size = Vector3.new(1, 1, 1),
-	Position = vineTopPos,
-	Anchored = true,
-	Transparency = 1,
-	CanCollide = false,
-}) :: BasePart
-local pivotAtt = make("Attachment", { Parent = pivot }) :: Attachment
+-- ---------------------------------------------------------------------
+-- Loop principal: nadar, morder e caçar
+-- ---------------------------------------------------------------------
+RunService.Heartbeat:Connect(function(dt)
+	-- 1) quem tá na água? marca pro jacaré mais perto caçar
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local onVine = character and character:GetAttribute("OnVine")
+		if hrp and not onVine and inWater(hrp.Position) then
+			-- acha o jacaré mais próximo e manda ele atacar
+			local best: Croc? = nil
+			local bestDist = math.huge
+			for _, c in crocData do
+				local d = (c.body.Position - hrp.Position).Magnitude
+				if d < bestDist then
+					bestDist = d
+					best = c
+				end
+			end
+			if best then
+				best.chasing = player
+			end
+			-- se já tá bem raso/dentro, morde na hora quando o jacaré chega perto
+			for _, c in crocData do
+				if (c.body.Position - hrp.Position).Magnitude < 6 then
+					eat(player, hrp)
+				end
+			end
+		end
+	end
 
--- o cipó em si: um cilindro comprido, SOLTO, preso ao pivô por uma junta de
--- "rótula" (BallSocket), que deixa ele balançar livre em qualquer direção.
-local vineLength = 13
-local vine = make("Part", {
-	Name = "Vine",
-	Shape = Enum.PartType.Cylinder,
-	Size = Vector3.new(vineLength, 0.6, 0.6),
-	-- posiciona o cipó pendurado pra baixo a partir do pivô
-	CFrame = CFrame.new(vineTopPos - Vector3.new(0, vineLength / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-	Color = VINE_COLOR,
-	Material = Enum.Material.Grass,
-	Anchored = false,
-	CanCollide = false,
-}) :: BasePart
+	-- 2) mover cada jacaré
+	for _, c in crocData do
+		c.phase += dt
 
--- attachment no TOPO do cipó (lembre: o comprimento é o eixo X local)
-local vineTopAtt = make("Attachment", {
-	Parent = vine,
-	Position = Vector3.new(vineLength / 2, 0, 0),
-}) :: Attachment
+		local goal: Vector3
+		local chasingHrp: BasePart? = nil
+		if c.chasing then
+			local char = c.chasing.Character
+			chasingHrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local onVine = char and char:GetAttribute("OnVine")
+			if chasingHrp and not onVine and inWater(chasingHrp.Position) then
+				goal = Vector3.new(chasingHrp.Position.X, WATER.surfaceY + 0.3, chasingHrp.Position.Z)
+			else
+				c.chasing = nil -- alvo saiu da água / soltou
+			end
+		end
 
--- junta de rótula: liga o topo do cipó ao pivô fixo -> vira um pêndulo
-make("BallSocketConstraint", {
-	Parent = vine,
-	Attachment0 = pivotAtt,
-	Attachment1 = vineTopAtt,
-})
+		if not c.chasing then
+			-- patrulha: vagueia até o alvo, escolhe outro ao chegar
+			goal = c.target
+			if (Vector3.new(c.body.Position.X, 0, c.body.Position.Z) - Vector3.new(c.target.X, 0, c.target.Z)).Magnitude < 4 then
+				c.target = randomWaterPoint()
+			end
+		end
 
--- marca o cipó com uma tag pro script de agarrar reconhecer
-CollectionService:AddTag(vine, "Grabbable")
+		local pos = c.body.Position
+		local flatGoal = Vector3.new(goal.X, WATER.surfaceY + 0.3, goal.Z)
+		local dir = flatGoal - pos
+		local dist = dir.Magnitude
+		local speed = c.chasing and (c.speed + 6) or c.speed
+		local step = math.min(dist, speed * dt)
+		local newPos = dist > 0.1 and (pos + dir.Unit * step) or pos
 
--- folhinhas decorativas no cipó
-for i = 1, 3 do
-	blob(Vector3.new(2, 2, 2), vineTopPos - Vector3.new(0, i * 3.5, 0), LEAF_A)
-end
+		-- balanço suave da cauda: um leve rolar + subir/descer na "água"
+		local bob = math.sin(c.phase * 3) * 0.12
+		newPos = Vector3.new(newPos.X, WATER.surfaceY + 0.3 + bob, newPos.Z)
 
-print("[Cena] 🌳 Árvore e cipó prontos! Encoste no cipó pra se pendurar e pule pra soltar.")
+		-- olha pra direção do movimento
+		local lookAt = dist > 0.1 and (newPos + dir.Unit) or (newPos + c.body.CFrame.LookVector)
+		local roll = math.sin(c.phase * 4) * 0.08 -- rebolado natatório
+		c.body.CFrame = CFrame.new(newPos, lookAt) * CFrame.Angles(0, 0, roll)
+
+		-- boca: fecha, mas escancara quando tá caçando/chegando perto
+		local openTarget: number
+		if c.chasing and chasingHrp and (c.body.Position - chasingHrp.Position).Magnitude < 14 then
+			openTarget = math.rad(35) -- BOCA ABERTA no ataque 🐊
+		else
+			openTarget = (math.sin(c.phase * 1.5) * 0.5 + 0.5) * math.rad(14) -- mastiga de leve
+		end
+		-- abre/fecha girando a mandíbula no eixo X (na dobradiça de trás)
+		c.jaw.C0 = CFrame.new(0, -0.5, -1.6) * CFrame.Angles(-openTarget, 0, 0)
+	end
+end)
+
+-- limpeza
+Players.PlayerRemoving:Connect(function(player)
+	eaten[player] = nil
+	for _, c in crocData do
+		if c.chasing == player then
+			c.chasing = nil
+		end
+	end
+end)
+
+print("[Jacarés] 🐊 " .. NUM_CROCS .. " jacarés soltos no lago. Não caia na água!")
 ]]></string>
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="6">
+  <Item class="StarterPlayer" referent="7">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="7">
+    <Item class="StarterPlayerScripts" referent="8">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="8">
-        <Properties>
-          <string name="Name">VineClient</string>
-          <string name="Source"><![CDATA[--!strict
+    <Item class="LocalScript" referent="9">
+      <Properties>
+        <string name="Name">VineClient</string>
+        <string name="Source"><![CDATA[--!strict
 -- VineClient.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
 -- =========================================================================
 -- Duas coisas:
@@ -496,7 +946,7 @@ hint.BackgroundTransparency = 0.25
 hint.TextColor3 = Color3.fromRGB(235, 255, 230)
 hint.Font = Enum.Font.GothamMedium
 hint.TextScaled = true
-hint.Text = "🌿 Encoste no cipó para se pendurar  •  Espaço para soltar"
+hint.Text = "🌿 Encoste no cipó p/ pendurar • Espaço p/ soltar no embalo • Pule de cipó em cipó até o troféu — não caia na água! 🐊"
 hint.Parent = gui
 
 local corner = Instance.new("UICorner")
@@ -508,8 +958,123 @@ pad.PaddingLeft = UDim.new(0, 14)
 pad.PaddingRight = UDim.new(0, 14)
 pad.Parent = hint
 ]]></string>
-        </Properties>
-      </Item>
+      </Properties>
+    </Item>
+    <Item class="LocalScript" referent="10">
+      <Properties>
+        <string name="Name">ArmPose</string>
+        <string name="Source"><![CDATA[--!strict
+-- ArmPose.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
+-- =========================================================================
+-- Faz o BRAÇO do personagem levantar como se estivesse REALMENTE segurando
+-- o cipó. 🙌🌿
+--
+-- Como funciona: o servidor liga o atributo "OnVine" no personagem quando
+-- você agarra o cipó. Aqui a gente escuta esse atributo e, enquanto estiver
+-- ligado, gira as juntas dos ombros (os dois braços) pra cima a cada frame
+-- (sobrepondo a animação padrão de "parado"). Ao soltar, volta ao normal.
+--
+-- Como você é o dono do seu personagem na rede, esse ajuste replica pro
+-- servidor e os OUTROS jogadores também te veem pendurado. 👀
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- quanto o braço sobe. Se quiser afinar a pose, mexa nestes ângulos.
+local RAISE = math.rad(150)
+
+type Joint = { motor: Motor6D, original: CFrame, pose: CFrame }
+
+local function setupCharacter(character: Model)
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+
+	-- acha as juntas dos ombros procurando pelo Part1 (funciona R6 e R15):
+	--   R6:  Part1 = "Right Arm" / "Left Arm"        (Motor6D no Torso)
+	--   R15: Part1 = "RightUpperArm" / "LeftUpperArm" (Motor6D no braço)
+	local function findShoulder(armNames: { string }): Motor6D?
+		for _, d in character:GetDescendants() do
+			if d:IsA("Motor6D") and d.Part1 then
+				for _, n in armNames do
+					if d.Part1.Name == n then
+						return d
+					end
+				end
+			end
+		end
+		return nil
+	end
+
+	local rightMotor = findShoulder({ "Right Arm", "RightUpperArm" })
+	local leftMotor = findShoulder({ "Left Arm", "LeftUpperArm" })
+
+	local joints: { Joint } = {}
+	if rightMotor then
+		table.insert(joints, {
+			motor = rightMotor,
+			original = rightMotor.C0,
+			-- braço direito sobe girando pra "trás/cima" no eixo Z local
+			pose = rightMotor.C0 * CFrame.Angles(0, 0, -RAISE),
+		})
+	end
+	if leftMotor then
+		table.insert(joints, {
+			motor = leftMotor,
+			original = leftMotor.C0,
+			pose = leftMotor.C0 * CFrame.Angles(0, 0, RAISE),
+		})
+	end
+
+	local connection: RBXScriptConnection? = nil
+
+	local function stopPose()
+		if connection then
+			connection:Disconnect()
+			connection = nil
+		end
+		for _, j in joints do
+			j.motor.C0 = j.original
+		end
+	end
+
+	local function startPose()
+		if connection then
+			return
+		end
+		-- a cada frame, sobrepõe a animação padrão travando os ombros na pose
+		connection = RunService.RenderStepped:Connect(function()
+			for _, j in joints do
+				j.motor.C0 = j.pose
+				j.motor.Transform = CFrame.identity -- congela a sacudida da animação
+			end
+		end)
+	end
+
+	character:GetAttributeChangedSignal("OnVine"):Connect(function()
+		if character:GetAttribute("OnVine") then
+			startPose()
+		else
+			stopPose()
+		end
+	end)
+
+	-- caso já esteja pendurado quando o script liga
+	if character:GetAttribute("OnVine") then
+		startPose()
+	end
+
+	humanoid.Died:Connect(stopPose)
+end
+
+if player.Character then
+	setupCharacter(player.Character)
+end
+player.CharacterAdded:Connect(setupCharacter)
+]]></string>
+      </Properties>
+    </Item>
     </Item>
   </Item>
 </roblox>
