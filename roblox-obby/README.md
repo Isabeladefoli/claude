@@ -1,120 +1,49 @@
-# 🧗 Obby Base — Roblox (vibecoding)
+# 🌳 Árvore + Cipó — Roblox (vibecoding)
 
-Uma base **completa e pronta pra jogar** de um Obby (jogo de obstáculos) no
-Roblox, escrita em **Luau**. Foi feita pra vibecoding: você marca as partes
-com _tags_ no Studio e os scripts fazem toda a lógica sozinhos. Sem precisar
-copiar script em cada plataforma. 🎮
+Recomeço do zero, focado no essencial: uma **árvore caprichada** e um **cipó
+em que você pode se pendurar e balançar**. Escrito em **Luau**.
 
-## O que já vem pronto
+## O que tem
 
-| Sistema | O que faz | Tag pra usar |
-|---|---|---|
-| ✅ Checkpoints | Salva o progresso e renasce o jogador no último estágio | `Checkpoint` |
-| 🔥 Lava / Killer | Mata quem encostar | `Killer` |
-| ↔️ Plataforma móvel | Vai e volta sozinha (TweenService) | `MovingPlatform` |
-| 👻 Plataforma que some | Some quando você pisa, volta depois | `Disappearing` |
-| 🪙 Moedas | Colecionáveis que giram e contam pontos | `Coin` |
-| 🚀 Trampolim | Lança o jogador pro alto | `JumpPad` |
-| ⚡ Faixa de velocidade | Deixa o jogador super rápido por um tempo | `SpeedBoost` |
-| 🌀 Giratório | Parte que gira sem parar (junte com `Killer` = mortal!) | `Spinner` |
-| 🏆 Linha de chegada | Tela de "Você venceu!" com confete, tempo e moedas | `Finish` |
-| 🌌 Iluminação | Visual cinematográfico (céu, bloom, cores vivas) | (automático) |
-| 🖥️ Interface | Contador de estágio, moedas e cronômetro | (automático) |
+| Coisa | O que faz |
+|---|---|
+| 🌳 Árvore | Tronco que afina, raízes, galhos e copa de folhagem em vários tons |
+| 🌿 Cipó | Pendura num galho e balança feito pêndulo — dá pra se segurar e voar |
 
-> 🎮 **Fase de exemplo inclusa:** o script `DemoLevel` monta uma fase grande
-> e jogável automaticamente no primeiro Play. Quando quiser fazer a sua,
-> mude `ENABLED = false` no topo dele (ou apague o script).
+**Controles do cipó:**
+- **Encostar** no cipó → o personagem se pendura e começa a balançar
+- **Espaço** (pulo) → solta, aproveitando o embalo pra ser lançado 🚀
 
-Tudo o que dá pra ajustar (velocidade, distância, tempos) está num único
-arquivo fácil: [`src/shared/Config.luau`](src/shared/Config.luau).
-
-## Estrutura dos arquivos
+## Estrutura
 
 ```
 roblox-obby/
-├── default.project.json         <- config do Rojo (sincronizar com o Studio)
+├── default.project.json      <- config do Rojo
+├── Obby.rbxlx                <- arquivo pronto: dê 2 cliques pra abrir no Studio
 └── src/
-    ├── shared/
-    │   └── Config.luau           <- TODOS os ajustes do jogo ficam aqui
-    ├── server/                   <- lógica do servidor (ServerScriptService)
-    │   ├── CheckpointService.server.luau
-    │   ├── KillPartService.server.luau
-    │   ├── MovingPlatformService.server.luau
-    │   ├── DisappearingPlatformService.server.luau
-    │   └── FinishService.server.luau
-    └── client/                   <- interface do jogador (StarterPlayerScripts)
-        └── StageGui.client.luau
+    ├── server/
+    │   ├── World.server.luau        <- monta o chão, a árvore e o cipó
+    │   ├── VineGrab.server.luau      <- lógica de agarrar/soltar o cipó
+    │   └── LightingSetup.server.luau <- iluminação de floresta
+    └── client/
+        └── VineClient.client.luau    <- "espaço = soltar" + dica na tela
 ```
 
----
+## Como abrir (o jeito fácil)
 
-## Como colocar pra rodar no Roblox Studio
+1. Baixe o arquivo **`Obby.rbxlx`**.
+2. Dê **dois cliques** nele → abre no Roblox Studio com tudo montado.
+3. Aperte **Play** ▶️, ande até o cipó, encoste pra se pendurar e aperte
+   **espaço** pra soltar.
 
-Tem dois caminhos. Se você está começando, use o **Jeito 1 (manual)**.
+## Como mexer
 
-### Jeito 1 — Manual (copiar e colar) — recomendado pra iniciante
+- **Tamanho/formato da árvore:** `World.server.luau` (seções do tronco,
+  galhos e as "bolotas" da copa).
+- **Posição e comprimento do cipó:** `World.server.luau`, procure por
+  `vineTopPos` e `vineLength`.
+- **Força do impulso ao soltar:** `VineGrab.server.luau`, no valor
+  `Vector3.new(0, 22, 0)` (aumente o 22 pra voar mais alto).
 
-1. Abra o **Roblox Studio** e crie um lugar novo (Baseplate serve).
-2. Na janela **Explorer**, crie os scripts assim:
-   - Em **ReplicatedStorage** → crie uma **Folder** chamada `Shared` →
-     dentro dela, um **ModuleScript** chamado `Config` → cole o conteúdo de
-     `src/shared/Config.luau`.
-   - Em **ServerScriptService** → crie um **Script** normal pra cada arquivo
-     da pasta `src/server/` (use o mesmo nome) e cole o conteúdo.
-   - Em **StarterPlayer → StarterPlayerScripts** → crie um **LocalScript**
-     chamado `StageGui` e cole o conteúdo de `src/client/StageGui.client.luau`.
-
-> Dica: o sufixo `.server.luau` = **Script** (roda no servidor);
-> `.client.luau` = **LocalScript** (roda no jogador); sem sufixo = **ModuleScript**.
-
-### Jeito 2 — Com Rojo (fluxo profissional, sincroniza automático)
-
-1. Instale o [Rojo](https://rojo.space/) e o plugin dele no Studio.
-2. No terminal, dentro da pasta `roblox-obby/`, rode:
-   ```bash
-   rojo serve
-   ```
-3. No Studio, abra o plugin do Rojo e clique em **Connect**. Pronto — seus
-   arquivos aparecem no jogo e qualquer edição que você salvar aqui atualiza
-   no Studio na hora.
-
----
-
-## Como montar a fase (o passo mais divertido!)
-
-Depois que os scripts estão no lugar, você **constrói a fase com blocos** e
-só marca cada bloco com a tag certa:
-
-1. No Studio, ative o editor de tags: menu **View → Tag Editor** (ou instale
-   o plugin gratuito "Tag Editor").
-2. Crie as tags: `Checkpoint`, `Killer`, `MovingPlatform`, `Disappearing`,
-   `Finish`.
-3. Selecione uma Part e marque a tag desejada:
-   - **Checkpoint:** marque a tag `Checkpoint` **e** adicione um Atributo
-     chamado `Stage` (number) com o número da fase: `0`, `1`, `2`, ...
-     (o `0` é o começo; use números crescentes pra frente).
-   - **Lava:** tag `Killer`.
-   - **Plataforma móvel:** tag `MovingPlatform` (e deixe `Anchored` = ✔️).
-   - **Plataforma que some:** tag `Disappearing` (e `Anchored` = ✔️).
-   - **Chegada:** tag `Finish`.
-4. Aperte **Play** ▶️ e teste!
-
-> Pra adicionar um **Atributo**: selecione a Part → painel **Properties** →
-> role até o fim → **Attributes** → **＋** → nome `Stage`, tipo `number`.
-
----
-
-## Ideias pra continuar vibecodando 💡
-
-- **Estilos de lava:** mude a `Color` das partes `Killer` pra criar veneno
-  (verde), gelo (azul), etc.
-- **Dificuldade:** no `Config.luau`, diminua o `Time` das plataformas móveis
-  pra deixar tudo mais rápido e tenso.
-- **Recompensa:** dê moedas quando o jogador passa de estágio (dá pra
-  adicionar um `IntValue` "Coins" no `leaderstats`).
-- **Salvar progresso entre sessões:** troque a memória por `DataStoreService`
-  pra o jogador continuar de onde parou quando voltar ao jogo.
-- **Sons:** toque um som de "morte" no `KillPartService` e um de "vitória"
-  no `FinishService`.
-
-Bom jogo e bom código! 🚀
+Quer mais cipós? É só duplicar a Part do cipó no Studio e marcar com a tag
+`Grabbable` — o script cuida do resto. 🌿

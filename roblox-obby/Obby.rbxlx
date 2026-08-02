@@ -7,893 +7,13 @@
       <Properties>
         <string name="Name">Shared</string>
       </Properties>
-      <Item class="ModuleScript" referent="2">
-        <Properties>
-          <string name="Name">Config</string>
-          <string name="Source"><![CDATA[--!strict
--- Config.luau
--- =========================================================================
--- Aqui ficam TODOS os "botões de ajuste" do jogo.
--- Quer deixar a lava mais mortal? A plataforma mais rápida? É tudo aqui.
--- Mexa nos números, dê play, e veja o resultado. Isso é vibecoding. 🎮
--- =========================================================================
-
-local Config = {}
-
--- Nomes das tags que você vai colocar nas partes dentro do Roblox Studio.
--- (Use a aba "Tags" no Studio, ou o plugin "Tag Editor").
-Config.Tags = {
-	Checkpoint = "Checkpoint", -- parte que salva o progresso do jogador
-	Killer = "Killer", -- lava / espinhos: mata quem encostar
-	MovingPlatform = "MovingPlatform", -- plataforma que vai e volta
-	Disappearing = "Disappearing", -- plataforma que some quando você pisa
-	Finish = "Finish", -- linha de chegada
-	Coin = "Coin", -- moeda que o jogador coleta
-	JumpPad = "JumpPad", -- trampolim: lança o jogador pro alto
-	SpeedBoost = "SpeedBoost", -- deixa o jogador mais rápido por um tempo
-	Spinner = "Spinner", -- obstáculo que gira sem parar
-}
-
--- Plataforma que se move (vai e volta)
-Config.MovingPlatform = {
-	distance = 16, -- quantos studs ela anda
-	time = 2, -- segundos pra ir de um lado ao outro
-	axis = Vector3.new(1, 0, 0), -- direção do movimento (X aqui). Use (0,0,1) pra Z, etc.
-}
-
--- Plataforma que some quando você pisa
-Config.Disappearing = {
-	delayBeforeVanish = 0.4, -- segundos depois de pisar até sumir
-	respawnTime = 2, -- segundos até voltar
-	warningTransparency = 0.5, -- fica "meio transparente" avisando antes de sumir
-}
-
--- Moedas
-Config.Coin = {
-	value = 1, -- quantas moedas cada uma vale
-	spinSpeed = 90, -- graus por segundo girando
-	respawnTime = 8, -- segundos até a moeda voltar depois de coletada
-}
-
--- Trampolim
-Config.JumpPad = {
-	power = 120, -- força do pulo (quanto maior, mais alto)
-}
-
--- Faixa de velocidade
-Config.SpeedBoost = {
-	walkSpeed = 48, -- velocidade turbinada (a normal é 16)
-	duration = 3, -- segundos que o efeito dura
-}
-
--- Obstáculo giratório
-Config.Spinner = {
-	speed = 120, -- graus por segundo
-	axis = Vector3.new(0, 1, 0), -- eixo de rotação (Y = gira em pé como um cata-vento deitado)
-}
-
--- Efeitos de morte / respawn
-Config.Respawn = {
-	killMessageEnabled = true,
-}
-
-return Config
-]]></string>
-        </Properties>
-      </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="3">
+  <Item class="ServerScriptService" referent="2">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="4">
-      <Properties>
-        <string name="Name">CheckpointService</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- CheckpointService.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- Controla os CHECKPOINTS (as bandeirinhas de salvamento) do obby.
---
--- Como usar no Studio:
---   1. Crie uma Part pra cada checkpoint.
---   2. Marque cada uma com a tag "Checkpoint".
---   3. Em cada Part, adicione um Atributo (aba Properties -> Attributes)
---      chamado "Stage" do tipo number: 0, 1, 2, 3...
---      (0 = o spawn inicial, 1 = primeiro checkpoint, e assim por diante)
---
--- O jogo cuida do resto: quando o jogador encosta num checkpoint com número
--- MAIOR que o atual, o progresso é salvo e ele passa a renascer ali.
--- =========================================================================
-
-local Players = game:GetService("Players")
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-
--- Guarda o CFrame (posição) do checkpoint de cada jogador
-local checkpointOf: { [Player]: CFrame } = {}
-
--- Descobre o número do estágio de uma parte de checkpoint
-local function stageNumberOf(part: BasePart): number
-	local attr = part:GetAttribute("Stage")
-	if typeof(attr) == "number" then
-		return attr
-	end
-	return 0
-end
-
--- Cria o leaderstats ("Stage" aparece na tabela de placar do canto da tela)
-local function setupLeaderstats(player: Player)
-	local leaderstats = Instance.new("Folder")
-	leaderstats.Name = "leaderstats"
-	leaderstats.Parent = player
-
-	local stage = Instance.new("IntValue")
-	stage.Name = "Stage"
-	stage.Value = 0
-	stage.Parent = leaderstats
-end
-
--- Teleporta o personagem pra cima do checkpoint atual
-local function spawnAtCheckpoint(player: Player, character: Model)
-	local cf = checkpointOf[player]
-	if not cf then
-		return
-	end
-	local root = character:WaitForChild("HumanoidRootPart", 5) :: BasePart?
-	if root then
-		-- +5 studs pra não nascer preso dentro da parte
-		root.CFrame = cf + Vector3.new(0, 5, 0)
-	end
-end
-
-local function onCharacterAdded(player: Player, character: Model)
-	spawnAtCheckpoint(player, character)
-end
-
-local function onPlayerAdded(player: Player)
-	checkpointOf[player] = nil
-	setupLeaderstats(player)
-
-	player.CharacterAdded:Connect(function(character)
-		onCharacterAdded(player, character)
-	end)
-end
-
--- Liga o "detector de toque" num checkpoint
-local function connectCheckpoint(part: BasePart)
-	part.Touched:Connect(function(hit)
-		local character = hit.Parent
-		if not character then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if not humanoid or humanoid.Health <= 0 then
-			return
-		end
-		local player = Players:GetPlayerFromCharacter(character)
-		if not player then
-			return
-		end
-
-		local newStage = stageNumberOf(part)
-		local stageValue = player:FindFirstChild("leaderstats")
-			and player.leaderstats:FindFirstChild("Stage") :: IntValue?
-
-		if stageValue and newStage > stageValue.Value then
-			stageValue.Value = newStage
-			checkpointOf[player] = part.CFrame
-			-- feedbackzinho verde no checkpoint recém-alcançado
-			part.Color = Color3.fromRGB(80, 220, 120)
-		end
-	end)
-end
-
--- ---- Inicialização ----
-
-Players.PlayerAdded:Connect(onPlayerAdded)
-Players.PlayerRemoving:Connect(function(player)
-	checkpointOf[player] = nil
-end)
-
--- Conecta todos os checkpoints que já existem e os que forem criados depois
-for _, inst in CollectionService:GetTagged(Config.Tags.Checkpoint) do
-	if inst:IsA("BasePart") then
-		connectCheckpoint(inst)
-	end
-end
-CollectionService:GetInstanceAddedSignal(Config.Tags.Checkpoint):Connect(function(inst)
-	if inst:IsA("BasePart") then
-		connectCheckpoint(inst)
-	end
-end)
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="5">
-      <Properties>
-        <string name="Name">CoinService</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- CoinService.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- Moedas colecionáveis! Partes marcadas com "Coin" giram sozinhas, e quando
--- o jogador encosta elas somem, dão pontos e voltam depois de um tempo. 🪙
---
--- Como usar no Studio: crie uma Part (dourada fica linda), marque com a tag
--- "Coin". Pronto. O contador aparece sozinho na tela.
--- =========================================================================
-
-local Players = game:GetService("Players")
-local CollectionService = game:GetService("CollectionService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-local settings = Config.Coin
-
--- adiciona o contador "Coins" no leaderstats (criado pelo CheckpointService)
-local function setupCoins(player: Player)
-	local leaderstats = player:WaitForChild("leaderstats")
-	if not leaderstats:FindFirstChild("Coins") then
-		local coins = Instance.new("IntValue")
-		coins.Name = "Coins"
-		coins.Value = 0
-		coins.Parent = leaderstats
-	end
-end
-
-Players.PlayerAdded:Connect(setupCoins)
-for _, p in Players:GetPlayers() do
-	task.spawn(setupCoins, p)
-end
-
-local collected: { [BasePart]: boolean } = {}
-
-local function connectCoin(part: BasePart)
-	part.Anchored = true
-	part.CanCollide = false
-	part.Material = Enum.Material.Neon
-	if part.Color == Color3.new(1, 1, 1) then
-		part.Color = Color3.fromRGB(255, 215, 0) -- dourado por padrão
-	end
-
-	-- faz girar sem parar (efeito clássico de moeda)
-	RunService.Heartbeat:Connect(function(dt)
-		if part.Parent and not collected[part] then
-			part.CFrame = part.CFrame * CFrame.Angles(0, math.rad(settings.spinSpeed * dt), 0)
-		end
-	end)
-
-	part.Touched:Connect(function(hit)
-		if collected[part] then
-			return
-		end
-		local character = hit.Parent
-		if not character then
-			return
-		end
-		local player = Players:GetPlayerFromCharacter(character)
-		if not player then
-			return
-		end
-
-		collected[part] = true
-		part.Transparency = 1
-		part.CanCollide = false
-
-		local leaderstats = player:FindFirstChild("leaderstats")
-		local coins = leaderstats and leaderstats:FindFirstChild("Coins") :: IntValue?
-		if coins then
-			coins.Value += settings.value
-		end
-
-		-- volta depois de um tempo
-		task.delay(settings.respawnTime, function()
-			if part.Parent then
-				part.Transparency = 0
-				collected[part] = false
-			end
-		end)
-	end)
-end
-
-for _, inst in CollectionService:GetTagged(Config.Tags.Coin) do
-	if inst:IsA("BasePart") then
-		connectCoin(inst)
-	end
-end
-CollectionService:GetInstanceAddedSignal(Config.Tags.Coin):Connect(function(inst)
-	if inst:IsA("BasePart") then
-		connectCoin(inst)
-	end
-end)
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="6">
-      <Properties>
-        <string name="Name">DemoLevel</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- DemoLevel.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- 🌿 FASE FLORESTA 🌿
--- Monta automaticamente um obby com tema de floresta: pule de árvore em
--- árvore, escale cipós, desvie de espinhos e use cogumelos-trampolim.
---
--- Feita pra ser DIVERTIDA e POSSÍVEL de passar (nada de trecho onde tudo te
--- mata). Quando quiser fazer a sua fase do zero, mude ENABLED pra false.
--- =========================================================================
-
-local ENABLED = true
-
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-local T = Config.Tags
-
-if not ENABLED then
-	return
-end
-
-task.wait(0.2) -- deixa os outros serviços ligarem os "ouvintes" de tag primeiro
-
-local folder = Instance.new("Folder")
-folder.Name = "DemoLevel"
-folder.Parent = workspace
-
--- cores da floresta
-local BARK = Color3.fromRGB(96, 64, 40) -- tronco
-local LEAF = Color3.fromRGB(70, 150, 60) -- folhas
-local LEAF2 = Color3.fromRGB(95, 175, 75) -- folhas claras
-local GRASS = Color3.fromRGB(80, 140, 55) -- chão
-local VINE = Color3.fromRGB(70, 120, 50) -- cipó
-local THORN = Color3.fromRGB(120, 40, 60) -- espinhos (mortais)
-local MUSH = Color3.fromRGB(220, 70, 70) -- cogumelo-trampolim
-
--- ---------- helpers ----------
-local function part(pos: Vector3, size: Vector3, color: Color3, material: Enum.Material?, shape: Enum.PartType?): Part
-	local p = Instance.new("Part")
-	p.Anchored = true
-	p.Size = size
-	p.Position = pos
-	p.Color = color
-	p.Material = material or Enum.Material.SmoothPlastic
-	if shape then
-		p.Shape = shape
-	end
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Parent = folder
-	return p
-end
-
--- uma árvore: tronco + copa de "bolotas" de folha. Devolve o topo da copa
--- (pra você usar como plataforma se quiser).
-local function tree(base: Vector3, trunkHeight: number, canopy: Color3?, solid: boolean?): number
-	local trunk = part(base + Vector3.new(0, trunkHeight / 2, 0), Vector3.new(3, trunkHeight, 3), BARK, Enum.Material.Wood)
-	trunk.CanCollide = solid ~= false
-	local topY = base.Y + trunkHeight
-	local color = canopy or LEAF
-	-- copa: várias esferas sobrepostas
-	local blobs = {
-		{ Vector3.new(0, 0, 0), 9 },
-		{ Vector3.new(4, -1, 2), 6 },
-		{ Vector3.new(-4, -1, -2), 6 },
-		{ Vector3.new(2, 2, -3), 5 },
-		{ Vector3.new(-2, 2, 3), 5 },
-	}
-	for _, b in blobs do
-		local off, d = b[1] :: Vector3, b[2] :: number
-		local leaf = part(base + Vector3.new(0, trunkHeight, 0) + off, Vector3.new(d, d, d), color, Enum.Material.Grass, Enum.PartType.Ball)
-		leaf.CanCollide = false -- decoração, não trava o jogador
-	end
-	return topY
-end
-
--- plataforma de copa em que dá pra PULAR (um disco achatado de folhas)
--- No cilindro, o eixo X é a "altura"; deixando X = 2 e girando 90°, o disco
--- fica deitado com 2 studs de espessura e "radius" de diâmetro.
-local function canopyPlatform(pos: Vector3, radius: number, color: Color3?): Part
-	local p = part(pos, Vector3.new(2, radius, radius), color or LEAF2, Enum.Material.Grass, Enum.PartType.Cylinder)
-	p.Orientation = Vector3.new(0, 0, 90) -- deita o cilindro virando um "disco" horizontal
-	return p
-end
-
--- cipó decorativo pendurado
-local function vine(top: Vector3, length: number)
-	local v = part(top + Vector3.new(0, -length / 2, 0), Vector3.new(0.4, length, 0.4), VINE, Enum.Material.Grass, Enum.PartType.Cylinder)
-	v.CanCollide = false
-end
-
--- moeda (fruta dourada) flutuando
-local function coin(pos: Vector3)
-	local c = part(pos + Vector3.new(0, 4, 0), Vector3.new(0.4, 3, 3), Color3.fromRGB(255, 215, 0), Enum.Material.Neon)
-	c.Shape = Enum.PartType.Cylinder
-	c.Orientation = Vector3.new(0, 0, 90)
-	c.CanCollide = false
-	CollectionService:AddTag(c, T.Coin)
-end
-
-local function checkpoint(pos: Vector3, stage: number)
-	local cp = part(pos, Vector3.new(8, 1, 8), Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
-	cp:SetAttribute("Stage", stage)
-	CollectionService:AddTag(cp, T.Checkpoint)
-	-- plaquinha de madeira em cima do checkpoint
-	part(pos + Vector3.new(0, 2, 0), Vector3.new(1, 3, 1), BARK, Enum.Material.Wood)
-end
-
--- ======================================================================
---  CHÃO DA FLORESTA + árvores de fundo (cenário)
--- ======================================================================
-local ground = part(Vector3.new(0, -1, 75), Vector3.new(120, 2, 220), GRASS, Enum.Material.Grass)
-ground.Transparency = 0
-
--- floresta de fundo: árvores espalhadas dos dois lados do caminho
-local rng = Random.new(42)
-for i = 1, 40 do
-	local side = (i % 2 == 0) and 1 or -1
-	local x = side * rng:NextNumber(22, 55)
-	local z = rng:NextNumber(-10, 160)
-	local h = rng:NextNumber(14, 30)
-	local shade = (i % 3 == 0) and LEAF or LEAF2
-	tree(Vector3.new(x, 0, z), h, shade, false)
-end
-
--- ======================================================================
---  INÍCIO — clareira
--- ======================================================================
-local spawn = Instance.new("SpawnLocation")
-spawn.Anchored = true
-spawn.Size = Vector3.new(12, 1, 12)
-spawn.Position = Vector3.new(0, 5, 0)
-spawn.Color = Color3.fromRGB(110, 170, 90)
-spawn.Material = Enum.Material.Grass
-spawn.Parent = folder
-checkpoint(Vector3.new(0, 5, 0), 0)
-tree(Vector3.new(-8, 0, -4), 20)
-tree(Vector3.new(9, 0, -2), 24)
-
--- ======================================================================
---  SEÇÃO 1 — Pulando de árvore em árvore 🌳 (copas como plataformas)
--- ======================================================================
-local heights = { 5, 6, 8, 6, 9 }
-local z = 12
-for i, hy in heights do
-	tree(Vector3.new(0, hy - 6, z), 6, LEAF, false) -- tronco baixinho de apoio visual
-	canopyPlatform(Vector3.new(0, hy, z), 9)
-	coin(Vector3.new(0, hy, z))
-	z += 9
-end
-checkpoint(Vector3.new(0, 9, z), 1)
-z += 10
-
--- ======================================================================
---  SEÇÃO 2 — Escalada de cipó 🧗 (sobe pra um galho alto)
--- ======================================================================
--- galho de apoio embaixo
-canopyPlatform(Vector3.new(0, 9, z), 8)
--- CIPÓ ESCALÁVEL: uma "treliça" (TrussPart) que o jogador sobe sozinho ao encostar
-local truss = Instance.new("TrussPart")
-truss.Anchored = true
-truss.Size = Vector3.new(2, 14, 2)
-truss.Position = Vector3.new(0, 17, z)
-truss.Color = VINE
-truss.Material = Enum.Material.Grass
-truss.Parent = folder
--- cipós decorativos ao redor
-vine(Vector3.new(-3, 24, z), 10)
-vine(Vector3.new(3, 24, z), 12)
--- galho lá em cima, onde a escalada termina
-canopyPlatform(Vector3.new(0, 24.5, z + 4), 9)
-z += 4
-checkpoint(Vector3.new(0, 24.5, z), 2)
-z += 10
-
--- ======================================================================
---  SEÇÃO 3 — Ravina de espinhos + cogumelo-trampolim 🍄
--- ======================================================================
--- desce de volta pra um galho mais baixo
-canopyPlatform(Vector3.new(0, 18, z), 9)
-z += 9
-
--- fosso de ESPINHOS bem embaixo (mortal se cair)
-local thorns = part(Vector3.new(0, 2, z + 6), Vector3.new(10, 3, 20), THORN, Enum.Material.Slate)
-CollectionService:AddTag(thorns, T.Killer)
--- pontas de espinho decorativas
-for i = 1, 6 do
-	local sx = rng:NextNumber(-4, 4)
-	local sz = z + rng:NextNumber(-2, 14)
-	local spike = part(Vector3.new(sx, 4.5, sz), Vector3.new(1.5, 4, 1.5), THORN, Enum.Material.Slate)
-	spike.Orientation = Vector3.new(0, 0, 0)
-	CollectionService:AddTag(spike, T.Killer)
-end
-
--- cogumelo-trampolim pra atravessar a ravina voando 🍄
-local capBase = part(Vector3.new(0, 18.5, z), Vector3.new(2, 3, 2), Color3.fromRGB(240, 235, 210), Enum.Material.SmoothPlastic)
-capBase.Shape = Enum.PartType.Cylinder
-capBase.Orientation = Vector3.new(0, 0, 90)
-local cap = part(Vector3.new(0, 20, z), Vector3.new(2, 8, 8), MUSH, Enum.Material.SmoothPlastic)
-cap.Shape = Enum.PartType.Ball
-cap.Size = Vector3.new(8, 5, 8)
-CollectionService:AddTag(cap, T.JumpPad) -- pisou, VOOU!
-z += 20
-
--- aterrissagem do outro lado da ravina
-canopyPlatform(Vector3.new(0, 20, z), 10)
-checkpoint(Vector3.new(0, 20, z), 3)
-z += 12
-
--- ======================================================================
---  SEÇÃO 4 — Troncos que balançam ↔️ (plataformas móveis sobre espinhos)
--- ======================================================================
-local pit = part(Vector3.new(0, 2, z + 12), Vector3.new(12, 3, 34), THORN, Enum.Material.Slate)
-CollectionService:AddTag(pit, T.Killer)
-
--- dois troncos que vão e voltam: pule de um pro outro na hora certa
-local log1 = part(Vector3.new(0, 20, z), Vector3.new(9, 2, 3), BARK, Enum.Material.Wood)
-CollectionService:AddTag(log1, T.MovingPlatform)
-log1:SetAttribute("Distance", 10)
-log1:SetAttribute("Time", 2)
-z += 12
-
-local log2 = part(Vector3.new(0, 20, z), Vector3.new(9, 2, 3), BARK, Enum.Material.Wood)
-CollectionService:AddTag(log2, T.MovingPlatform)
-log2:SetAttribute("Distance", 10)
-log2:SetAttribute("Time", 1.6)
-z += 12
-
-canopyPlatform(Vector3.new(0, 20, z), 10)
-checkpoint(Vector3.new(0, 20, z), 4)
-z += 12
-
--- ======================================================================
---  SEÇÃO 5 — Corrida nas folhas que somem 🍃 (com impulso de velocidade)
--- ======================================================================
-local boost = part(Vector3.new(0, 20, z), Vector3.new(8, 1, 8), Color3.fromRGB(120, 220, 120), Enum.Material.Neon)
-CollectionService:AddTag(boost, T.SpeedBoost)
-z += 11
-
-for i = 1, 4 do
-	local leaf = canopyPlatform(Vector3.new(0, 20, z), 6, LEAF)
-	CollectionService:AddTag(leaf, T.Disappearing)
-	coin(Vector3.new(0, 20, z))
-	z += 8
-end
-z += 4
-checkpoint(Vector3.new(0, 20, z), 5)
-z += 12
-
--- ======================================================================
---  CHEGADA 🏆 — casa na árvore
--- ======================================================================
-tree(Vector3.new(0, 0, z + 2), 20, LEAF)
-local finish = part(Vector3.new(0, 20, z), Vector3.new(14, 1, 14), Color3.fromRGB(255, 215, 0), Enum.Material.Neon)
-CollectionService:AddTag(finish, T.Finish)
--- plataforma de madeira da casa na árvore
-part(Vector3.new(0, 19, z), Vector3.new(16, 1, 16), Color3.fromRGB(120, 85, 55), Enum.Material.WoodPlanks)
-
-print("[Obby] 🌿 Floresta montada! Pule pelas copas, escale o cipó e chegue na casa da árvore. 🏆")
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="7">
-      <Properties>
-        <string name="Name">DisappearingPlatformService</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- DisappearingPlatformService.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- Plataformas marcadas com "Disappearing" somem quando o jogador pisa,
--- e voltam depois de um tempo. Aquele frio na barriga do obby. 😅
---
--- Como usar no Studio:
---   1. Crie a Part (Anchored = true).
---   2. Marque com a tag "Disappearing".
---   Tempos de sumiço/volta ficam no Config.luau.
--- =========================================================================
-
-local Players = game:GetService("Players")
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-local settings = Config.Disappearing
-
--- evita disparar várias vezes enquanto a plataforma já está sumindo
-local vanishing: { [BasePart]: boolean } = {}
-
-local function vanishAndReturn(part: BasePart)
-	if vanishing[part] then
-		return
-	end
-	vanishing[part] = true
-
-	local originalTransparency = part.Transparency
-
-	-- 1) aviso: fica meio transparente
-	part.Transparency = settings.warningTransparency
-	task.wait(settings.delayBeforeVanish)
-
-	-- 2) some de vez (invisível e sem colisão)
-	part.Transparency = 1
-	part.CanCollide = false
-
-	-- 3) espera e volta ao normal
-	task.wait(settings.respawnTime)
-	part.Transparency = originalTransparency
-	part.CanCollide = true
-
-	vanishing[part] = false
-end
-
-local function connectPlatform(part: BasePart)
-	part.Touched:Connect(function(hit)
-		local character = hit.Parent
-		if not character then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid and humanoid.Health > 0 and Players:GetPlayerFromCharacter(character) then
-			task.spawn(vanishAndReturn, part)
-		end
-	end)
-end
-
-for _, inst in CollectionService:GetTagged(Config.Tags.Disappearing) do
-	if inst:IsA("BasePart") then
-		connectPlatform(inst)
-	end
-end
-CollectionService:GetInstanceAddedSignal(Config.Tags.Disappearing):Connect(function(inst)
-	if inst:IsA("BasePart") then
-		connectPlatform(inst)
-	end
-end)
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="8">
-      <Properties>
-        <string name="Name">FinishService</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- FinishService.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- Detecta quando o jogador chega na parte marcada com "Finish" e avisa
--- o cliente pra mostrar a tela de "VOCÊ VENCEU!". 🏆
---
--- Como usar no Studio:
---   1. Crie a Part da chegada.
---   2. Marque com a tag "Finish".
---   O RemoteEvent "ObbyFinished" é criado automaticamente em ReplicatedStorage.
--- =========================================================================
-
-local Players = game:GetService("Players")
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-
--- cria (ou reaproveita) o RemoteEvent usado pra avisar o cliente
-local finishedEvent = ReplicatedStorage:FindFirstChild("ObbyFinished") :: RemoteEvent?
-if not finishedEvent then
-	finishedEvent = Instance.new("RemoteEvent")
-	finishedEvent.Name = "ObbyFinished"
-	finishedEvent.Parent = ReplicatedStorage
-end
-
--- pra não spammar o cliente enquanto o jogador fica em cima da chegada
-local alreadyWon: { [Player]: boolean } = {}
-
-Players.PlayerRemoving:Connect(function(player)
-	alreadyWon[player] = nil
-end)
-
-local function connectFinish(part: BasePart)
-	part.Touched:Connect(function(hit)
-		local character = hit.Parent
-		if not character then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if not humanoid or humanoid.Health <= 0 then
-			return
-		end
-		local player = Players:GetPlayerFromCharacter(character)
-		if not player or alreadyWon[player] then
-			return
-		end
-
-		alreadyWon[player] = true
-		local event = finishedEvent :: RemoteEvent
-		event:FireClient(player)
-
-		-- libera de novo depois de alguns segundos, caso queira rejogar
-		task.delay(5, function()
-			alreadyWon[player] = false
-		end)
-	end)
-end
-
-for _, inst in CollectionService:GetTagged(Config.Tags.Finish) do
-	if inst:IsA("BasePart") then
-		connectFinish(inst)
-	end
-end
-CollectionService:GetInstanceAddedSignal(Config.Tags.Finish):Connect(function(inst)
-	if inst:IsA("BasePart") then
-		connectFinish(inst)
-	end
-end)
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="9">
-      <Properties>
-        <string name="Name">GimmicksService</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- GimmicksService.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- Junta três "brinquedinhos" que deixam o obby MUITO mais divertido:
---   🚀 JumpPad    -> trampolim, lança o jogador pro alto
---   ⚡ SpeedBoost -> deixa o jogador super rápido por alguns segundos
---   🌀 Spinner    -> parte que gira sem parar (combine com "Killer" pra virar
---                    um obstáculo mortal de derrubar!)
--- =========================================================================
-
-local Players = game:GetService("Players")
-local CollectionService = game:GetService("CollectionService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-
--- ---------------------------------------------------------------- JumpPad
-local function connectJumpPad(part: BasePart)
-	part.Anchored = true
-	local debounce: { [Model]: boolean } = {}
-	part.Touched:Connect(function(hit)
-		local character = hit.Parent :: Model?
-		if not character or debounce[character] then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if humanoid and root and humanoid.Health > 0 and Players:GetPlayerFromCharacter(character) then
-			debounce[character] = true
-			root.AssemblyLinearVelocity = Vector3.new(
-				root.AssemblyLinearVelocity.X,
-				Config.JumpPad.power,
-				root.AssemblyLinearVelocity.Z
-			)
-			task.delay(0.3, function()
-				debounce[character] = nil
-			end)
-		end
-	end)
-end
-
--- ------------------------------------------------------------- SpeedBoost
-local function connectSpeedBoost(part: BasePart)
-	part.Anchored = true
-	local debounce: { [Humanoid]: boolean } = {}
-	part.Touched:Connect(function(hit)
-		local character = hit.Parent
-		if not character then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if not humanoid or humanoid.Health <= 0 or debounce[humanoid] then
-			return
-		end
-		if not Players:GetPlayerFromCharacter(character) then
-			return
-		end
-		debounce[humanoid] = true
-		local original = humanoid.WalkSpeed
-		humanoid.WalkSpeed = Config.SpeedBoost.walkSpeed
-		task.delay(Config.SpeedBoost.duration, function()
-			if humanoid.Parent then
-				humanoid.WalkSpeed = original
-			end
-			debounce[humanoid] = nil
-		end)
-	end)
-end
-
--- ---------------------------------------------------------------- Spinner
-local function connectSpinner(part: BasePart)
-	part.Anchored = true
-	local axis = Config.Spinner.axis
-	RunService.Heartbeat:Connect(function(dt)
-		if part.Parent then
-			local angle = math.rad(Config.Spinner.speed * dt)
-			part.CFrame = part.CFrame * CFrame.Angles(axis.X * angle, axis.Y * angle, axis.Z * angle)
-		end
-	end)
-end
-
--- helper genérico: liga um conector em todas as partes de uma tag (agora e no futuro)
-local function bind(tag: string, fn: (BasePart) -> ())
-	for _, inst in CollectionService:GetTagged(tag) do
-		if inst:IsA("BasePart") then
-			fn(inst)
-		end
-	end
-	CollectionService:GetInstanceAddedSignal(tag):Connect(function(inst)
-		if inst:IsA("BasePart") then
-			fn(inst)
-		end
-	end)
-end
-
-bind(Config.Tags.JumpPad, connectJumpPad)
-bind(Config.Tags.SpeedBoost, connectSpeedBoost)
-bind(Config.Tags.Spinner, connectSpinner)
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="10">
-      <Properties>
-        <string name="Name">KillPartService</string>
-        <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[--!strict
--- KillPartService.server.luau  ->  vai em ServerScriptService
--- =========================================================================
--- Faz qualquer parte marcada com a tag "Killer" matar o jogador que encostar.
--- Perfeito pra lava, espinhos, água ácida, o que a criatividade mandar. 🔥
---
--- Como usar no Studio:
---   1. Crie a Part (ex: um bloco vermelho de "lava").
---   2. Marque com a tag "Killer".
---   Pronto. Encostou, morreu, e o CheckpointService renasce o jogador
---   no último checkpoint.
--- =========================================================================
-
-local Players = game:GetService("Players")
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-
-local function connectKiller(part: BasePart)
-	part.Touched:Connect(function(hit)
-		local character = hit.Parent
-		if not character then
-			return
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid and humanoid.Health > 0 then
-			-- só mata jogadores de verdade (evita matar NPCs por acidente,
-			-- se você não quiser — basta remover esta checagem)
-			if Players:GetPlayerFromCharacter(character) then
-				humanoid.Health = 0
-			end
-		end
-	end)
-end
-
-for _, inst in CollectionService:GetTagged(Config.Tags.Killer) do
-	if inst:IsA("BasePart") then
-		connectKiller(inst)
-	end
-end
-CollectionService:GetInstanceAddedSignal(Config.Tags.Killer):Connect(function(inst)
-	if inst:IsA("BasePart") then
-		connectKiller(inst)
-	end
-end)
-]]></string>
-      </Properties>
-    </Item>
-    <Item class="Script" referent="11">
+    <Item class="Script" referent="3">
       <Properties>
         <string name="Name">LightingSetup</string>
         <token name="RunContext">0</token>
@@ -959,276 +79,434 @@ dof.Parent = Lighting
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="12">
+    <Item class="Script" referent="4">
       <Properties>
-        <string name="Name">MovingPlatformService</string>
+        <string name="Name">VineGrab</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[--!strict
--- MovingPlatformService.server.luau  ->  vai em ServerScriptService
+-- VineGrab.server.luau  ->  vai em ServerScriptService
 -- =========================================================================
--- Faz plataformas marcadas com "MovingPlatform" irem e voltarem sozinhas.
--- Ótimo pra deixar o obby mais desafiador (timing!).
+-- Faz o cipó (parte marcada com "Grabbable") ser AGARRÁVEL:
+--   * Encoste no cipó  -> seu personagem se pendura e começa a balançar
+--   * Aperte ESPAÇO    -> solta e é lançado com o embalo (dá pra "voar")
 --
--- Como usar no Studio:
---   1. Crie a Part e deixe ela "Anchored" (Ancorada) = true.
---   2. Marque com a tag "MovingPlatform".
---   Distância, velocidade e direção você ajusta no Config.luau,
---   ou por parte usando os Atributos opcionais:
---      "Distance" (number), "Time" (number), "AxisX/AxisY/AxisZ" (number)
+-- Funciona com qualquer parte marcada "Grabbable", então dá pra criar vários
+-- cipós depois. 🌿
 -- =========================================================================
 
+local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-
-local function numberAttr(part: BasePart, name: string, default: number): number
-	local v = part:GetAttribute(name)
-	return typeof(v) == "number" and v or default
+-- RemoteEvent que o cliente usa pra avisar "quero soltar" (ao apertar espaço)
+local releaseEvent = ReplicatedStorage:FindFirstChild("VineRelease") :: RemoteEvent?
+if not releaseEvent then
+	releaseEvent = Instance.new("RemoteEvent")
+	releaseEvent.Name = "VineRelease"
+	releaseEvent.Parent = ReplicatedStorage
 end
 
-local function startMoving(part: BasePart)
-	-- garante que fica ancorada, senão a física briga com o tween
-	part.Anchored = true
+type Hold = {
+	vine: BasePart,
+	weld: Weld,
+	humanoid: Humanoid,
+	hrp: BasePart,
+}
 
-	local distance = numberAttr(part, "Distance", Config.MovingPlatform.distance)
-	local moveTime = numberAttr(part, "Time", Config.MovingPlatform.time)
+local holding: { [Player]: Hold } = {}
+local cooldownUntil: { [Player]: number } = {}
 
-	local axis = Vector3.new(
-		numberAttr(part, "AxisX", Config.MovingPlatform.axis.X),
-		numberAttr(part, "AxisY", Config.MovingPlatform.axis.Y),
-		numberAttr(part, "AxisZ", Config.MovingPlatform.axis.Z)
-	)
+-- solta o cipó, devolvendo o controle e mantendo o embalo (impulso)
+local function release(player: Player)
+	local hold = holding[player]
+	if not hold then
+		return
+	end
+	holding[player] = nil
 
-	local startCFrame = part.CFrame
-	local goalCFrame = startCFrame + (axis * distance)
+	local hrp = hold.hrp
+	local momentum = hrp.AssemblyLinearVelocity
 
-	local info = TweenInfo.new(
-		moveTime,
-		Enum.EasingStyle.Sine,
-		Enum.EasingDirection.InOut,
-		-1, -- repete pra sempre
-		true -- reverse: volta sozinha (efeito vai-e-volta)
-	)
+	hold.weld:Destroy()
+	hold.humanoid.PlatformStand = false
 
-	local tween = TweenService:Create(part, info, { CFrame = goalCFrame })
-	tween:Play()
+	-- devolve a "posse" física do cipó pro servidor
+	pcall(function()
+		hold.vine:SetNetworkOwner(nil)
+	end)
+
+	-- aplica o embalo do balanço + um empurrãozinho pra cima = pulo estiloso
+	hrp.AssemblyLinearVelocity = momentum + Vector3.new(0, 22, 0)
+
+	cooldownUntil[player] = os.clock() + 1.0
 end
 
-for _, inst in CollectionService:GetTagged(Config.Tags.MovingPlatform) do
+-- agarra o cipó
+local function grab(player: Player, vine: BasePart, character: Model)
+	if holding[player] then
+		return
+	end
+	if os.clock() < (cooldownUntil[player] or 0) then
+		return
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not humanoid or not hrp or humanoid.Health <= 0 then
+		return
+	end
+
+	-- posiciona o personagem pendurado logo abaixo da ponta de baixo do cipó
+	local bottom = vine.CFrame * CFrame.new(-(vine.Size.X / 2), 0, 0) -- ponta inferior
+	local hangCFrame = CFrame.new(bottom.Position - Vector3.new(0, 2.5, 0))
+	hrp.CFrame = hangCFrame
+
+	-- entrega o controle físico do cipó pro cliente do jogador (balanço fluido)
+	pcall(function()
+		vine:SetNetworkOwner(player)
+	end)
+
+	-- prende o personagem no cipó
+	local weld = Instance.new("Weld")
+	weld.Part0 = vine
+	weld.Part1 = hrp
+	weld.C0 = vine.CFrame:ToObjectSpace(hrp.CFrame)
+	weld.Parent = vine
+
+	humanoid.PlatformStand = true -- desliga o andar; a física do cipó comanda
+
+	-- empurrãozinho inicial na direção pra onde o jogador olha, pra já balançar
+	local look = hrp.CFrame.LookVector
+	vine.AssemblyLinearVelocity = Vector3.new(look.X, 0, look.Z).Unit * 14
+
+	holding[player] = {
+		vine = vine,
+		weld = weld,
+		humanoid = humanoid,
+		hrp = hrp,
+	}
+end
+
+-- liga o "detector de toque" num cipó
+local function connectVine(vine: BasePart)
+	vine.Touched:Connect(function(hit)
+		local character = hit.Parent :: Model?
+		if not character then
+			return
+		end
+		local player = Players:GetPlayerFromCharacter(character)
+		if player then
+			grab(player, vine, character)
+		end
+	end)
+end
+
+for _, inst in CollectionService:GetTagged("Grabbable") do
 	if inst:IsA("BasePart") then
-		startMoving(inst)
+		connectVine(inst)
 	end
 end
-CollectionService:GetInstanceAddedSignal(Config.Tags.MovingPlatform):Connect(function(inst)
+CollectionService:GetInstanceAddedSignal("Grabbable"):Connect(function(inst)
 	if inst:IsA("BasePart") then
-		startMoving(inst)
+		connectVine(inst)
 	end
+end)
+
+-- pedido de soltar (veio do cliente ao apertar espaço)
+releaseEvent.OnServerEvent:Connect(function(player)
+	release(player)
+end)
+
+-- limpeza: se morrer ou sair enquanto pendurado, solta e limpa
+Players.PlayerRemoving:Connect(function(player)
+	holding[player] = nil
+	cooldownUntil[player] = nil
+end)
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterRemoving:Connect(function()
+		holding[player] = nil
+	end)
 end)
 ]]></string>
       </Properties>
     </Item>
+    <Item class="Script" referent="5">
+      <Properties>
+        <string name="Name">World</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- World.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Monta a cena: chão de grama, uma ÁRVORE caprichada e um CIPÓ pendurado
+-- num galho, pronto pra você se segurar e balançar.
+--
+-- A lógica de "agarrar / soltar" o cipó fica no VineGrab.server.luau.
+-- =========================================================================
+
+local CollectionService = game:GetService("CollectionService")
+
+-- cores naturais
+local BARK = Color3.fromRGB(92, 62, 41)
+local BARK_DARK = Color3.fromRGB(72, 48, 32)
+local LEAF_A = Color3.fromRGB(60, 110, 45)
+local LEAF_B = Color3.fromRGB(84, 142, 58)
+local LEAF_C = Color3.fromRGB(104, 168, 74)
+local VINE_COLOR = Color3.fromRGB(74, 120, 52)
+
+local world = Instance.new("Folder")
+world.Name = "World"
+world.Parent = workspace
+
+-- helper de bloco genérico
+local function make(class: string, props: { [string]: any }): Instance
+	local inst = Instance.new(class)
+	for k, v in props do
+		(inst :: any)[k] = v
+	end
+	inst.Parent = props.Parent or world
+	return inst
+end
+
+local function cylinder(size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material): BasePart
+	return make("Part", {
+		Shape = Enum.PartType.Cylinder,
+		Size = size,
+		CFrame = cframe,
+		Color = color,
+		Material = material,
+		Anchored = true,
+		TopSurface = Enum.SurfaceType.Smooth,
+		BottomSurface = Enum.SurfaceType.Smooth,
+	}) :: BasePart
+end
+
+local function blob(size: Vector3, pos: Vector3, color: Color3): BasePart
+	return make("Part", {
+		Shape = Enum.PartType.Ball,
+		Size = size,
+		Position = pos,
+		Color = color,
+		Material = Enum.Material.Grass,
+		Anchored = true,
+		CanCollide = false,
+	}) :: BasePart
+end
+
+-- ======================================================================
+--  CHÃO
+-- ======================================================================
+make("Part", {
+	Name = "Ground",
+	Size = Vector3.new(200, 4, 200),
+	Position = Vector3.new(0, -2, 0),
+	Color = Color3.fromRGB(86, 138, 62),
+	Material = Enum.Material.Grass,
+	Anchored = true,
+})
+
+-- ponto de nascimento
+make("SpawnLocation", {
+	Size = Vector3.new(8, 1, 8),
+	Position = Vector3.new(0, 0.5, 18),
+	Color = Color3.fromRGB(110, 165, 85),
+	Material = Enum.Material.Grass,
+	Anchored = true,
+})
+
+-- ======================================================================
+--  A ÁRVORE 🌳
+-- ======================================================================
+local treeBase = Vector3.new(0, 0, 0)
+
+-- tronco: cilindros empilhados que vão afinando (dá a impressão de tronco real)
+local trunkSections = {
+	{ y = 3, r = 4.0 },
+	{ y = 9, r = 3.4 },
+	{ y = 15, r = 2.8 },
+	{ y = 20, r = 2.2 },
+}
+for _, s in trunkSections do
+	-- cilindro em pé = girar 90° no eixo Z (o comprimento do cilindro é o eixo X)
+	local height = 7
+	cylinder(
+		Vector3.new(height, s.r * 2, s.r * 2),
+		CFrame.new(treeBase + Vector3.new(0, s.y, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		s.y < 12 and BARK or BARK_DARK,
+		Enum.Material.Wood
+	)
+end
+
+-- raízes na base (pequenos cilindros inclinados saindo do tronco)
+for i = 0, 5 do
+	local ang = math.rad(i * 60)
+	local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
+	local rootPos = treeBase + dir * 4 + Vector3.new(0, 0.6, 0)
+	cylinder(
+		Vector3.new(5, 1.6, 1.6),
+		CFrame.new(rootPos, rootPos + dir + Vector3.new(0, -0.4, 0)) * CFrame.Angles(0, math.rad(90), 0),
+		BARK_DARK,
+		Enum.Material.Wood
+	)
+end
+
+-- galhos principais saindo do alto do tronco
+local branches = {
+	{ dir = Vector3.new(1, 0.5, 0.2), len = 12 },
+	{ dir = Vector3.new(-0.8, 0.6, -0.3), len = 11 },
+	{ dir = Vector3.new(0.1, 0.7, 1), len = 10 },
+	{ dir = Vector3.new(-0.2, 0.6, -1), len = 9 },
+}
+for _, b in branches do
+	local dir = b.dir.Unit
+	local start = treeBase + Vector3.new(0, 20, 0)
+	local finish = start + dir * b.len
+	local mid = (start + finish) / 2
+	cylinder(
+		Vector3.new(b.len, 1.8, 1.8),
+		CFrame.new(mid, finish) * CFrame.Angles(0, math.rad(90), 0),
+		BARK,
+		Enum.Material.Wood
+	)
+end
+
+-- galho FORTE e mais horizontal, de onde o cipó vai pendurar
+local vineBranchStart = treeBase + Vector3.new(0, 22, 0)
+local vineBranchEnd = vineBranchStart + Vector3.new(9, 1.5, 0)
+cylinder(
+	Vector3.new(11, 2.2, 2.2),
+	CFrame.new((vineBranchStart + vineBranchEnd) / 2, vineBranchEnd) * CFrame.Angles(0, math.rad(90), 0),
+	BARK,
+	Enum.Material.Wood
+)
+
+-- COPA: várias bolotas de folha em tons diferentes (parece folhagem de verdade)
+local canopyCenter = treeBase + Vector3.new(0, 26, 0)
+local leafBlobs = {
+	{ Vector3.new(0, 0, 0), 18, LEAF_B },
+	{ Vector3.new(7, -2, 4), 13, LEAF_A },
+	{ Vector3.new(-7, -1, -3), 13, LEAF_C },
+	{ Vector3.new(4, 3, -6), 12, LEAF_C },
+	{ Vector3.new(-5, 2, 6), 12, LEAF_A },
+	{ Vector3.new(0, 5, 0), 12, LEAF_B },
+	{ Vector3.new(9, 1, -2), 10, LEAF_B },
+}
+for _, lb in leafBlobs do
+	local off, d, col = lb[1] :: Vector3, lb[2] :: number, lb[3] :: Color3
+	blob(Vector3.new(d, d, d), canopyCenter + off, col)
+end
+
+-- ======================================================================
+--  O CIPÓ 🌿  (pendura no galho e balança como um pêndulo)
+-- ======================================================================
+-- ponto fixo no galho (âncora do cipó)
+local vineTopPos = Vector3.new(7, 21, 0)
+local pivot = make("Part", {
+	Name = "VinePivot",
+	Size = Vector3.new(1, 1, 1),
+	Position = vineTopPos,
+	Anchored = true,
+	Transparency = 1,
+	CanCollide = false,
+}) :: BasePart
+local pivotAtt = make("Attachment", { Parent = pivot }) :: Attachment
+
+-- o cipó em si: um cilindro comprido, SOLTO, preso ao pivô por uma junta de
+-- "rótula" (BallSocket), que deixa ele balançar livre em qualquer direção.
+local vineLength = 13
+local vine = make("Part", {
+	Name = "Vine",
+	Shape = Enum.PartType.Cylinder,
+	Size = Vector3.new(vineLength, 0.6, 0.6),
+	-- posiciona o cipó pendurado pra baixo a partir do pivô
+	CFrame = CFrame.new(vineTopPos - Vector3.new(0, vineLength / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+	Color = VINE_COLOR,
+	Material = Enum.Material.Grass,
+	Anchored = false,
+	CanCollide = false,
+}) :: BasePart
+
+-- attachment no TOPO do cipó (lembre: o comprimento é o eixo X local)
+local vineTopAtt = make("Attachment", {
+	Parent = vine,
+	Position = Vector3.new(vineLength / 2, 0, 0),
+}) :: Attachment
+
+-- junta de rótula: liga o topo do cipó ao pivô fixo -> vira um pêndulo
+make("BallSocketConstraint", {
+	Parent = vine,
+	Attachment0 = pivotAtt,
+	Attachment1 = vineTopAtt,
+})
+
+-- marca o cipó com uma tag pro script de agarrar reconhecer
+CollectionService:AddTag(vine, "Grabbable")
+
+-- folhinhas decorativas no cipó
+for i = 1, 3 do
+	blob(Vector3.new(2, 2, 2), vineTopPos - Vector3.new(0, i * 3.5, 0), LEAF_A)
+end
+
+print("[Cena] 🌳 Árvore e cipó prontos! Encoste no cipó pra se pendurar e pule pra soltar.")
+]]></string>
+      </Properties>
+    </Item>
   </Item>
-  <Item class="StarterPlayer" referent="13">
+  <Item class="StarterPlayer" referent="6">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="14">
+    <Item class="StarterPlayerScripts" referent="7">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="15">
+      <Item class="LocalScript" referent="8">
         <Properties>
-          <string name="Name">StageGui</string>
+          <string name="Name">VineClient</string>
           <string name="Source"><![CDATA[--!strict
--- StageGui.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
+-- VineClient.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
 -- =========================================================================
--- Interface do jogo, tudo feito por código:
---   * "Estágio: N"  no topo
---   * "🪙 Moedas: N" logo abaixo
---   * "⏱️ Tempo: N s" cronômetro correndo
---   * tela grande de "VOCÊ VENCEU!" com CONFETE quando chega no Finish 🎉
+-- Duas coisas:
+--   1. Quando você aperta ESPAÇO (pulo), avisa o servidor pra SOLTAR o cipó.
+--   2. Mostra uma dica na tela explicando os controles.
 -- =========================================================================
 
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
+local releaseEvent = ReplicatedStorage:WaitForChild("VineRelease") :: RemoteEvent
 
--- ---- ScreenGui base ----
+-- avisa o servidor sempre que o jogador tenta pular (espaço / botão de pulo)
+UserInputService.JumpRequest:Connect(function()
+	releaseEvent:FireServer()
+end)
+
+-- ---- dica na tela ----
 local gui = Instance.new("ScreenGui")
-gui.Name = "ObbyGui"
+gui.Name = "VineHintGui"
 gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- helper pra criar os "cartõezinhos" de informação no topo
-local function makeInfoCard(order: number, text: string): TextLabel
-	local label = Instance.new("TextLabel")
-	label.AnchorPoint = Vector2.new(0.5, 0)
-	label.Position = UDim2.new(0.5, 0, 0.02 + (order * 0.065), 0)
-	label.Size = UDim2.new(0, 240, 0, 46)
-	label.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-	label.BackgroundTransparency = 0.2
-	label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.Text = text
-	label.Parent = gui
+local hint = Instance.new("TextLabel")
+hint.AnchorPoint = Vector2.new(0.5, 1)
+hint.Position = UDim2.new(0.5, 0, 0.95, 0)
+hint.Size = UDim2.new(0, 440, 0, 44)
+hint.BackgroundColor3 = Color3.fromRGB(20, 30, 18)
+hint.BackgroundTransparency = 0.25
+hint.TextColor3 = Color3.fromRGB(235, 255, 230)
+hint.Font = Enum.Font.GothamMedium
+hint.TextScaled = true
+hint.Text = "🌿 Encoste no cipó para se pendurar  •  Espaço para soltar"
+hint.Parent = gui
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = label
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = hint
 
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 14)
-	pad.PaddingRight = UDim.new(0, 14)
-	pad.Parent = label
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(120, 140, 255)
-	stroke.Thickness = 1.5
-	stroke.Transparency = 0.3
-	stroke.Parent = label
-
-	return label
-end
-
-local stageLabel = makeInfoCard(0, "Estágio: 0")
-local coinLabel = makeInfoCard(1, "🪙 Moedas: 0")
-local timeLabel = makeInfoCard(2, "⏱️ Tempo: 0.0s")
-
--- ---- segue os valores do leaderstats ----
-task.spawn(function()
-	local leaderstats = player:WaitForChild("leaderstats")
-
-	local stage = leaderstats:WaitForChild("Stage") :: IntValue
-	local function updStage()
-		stageLabel.Text = "Estágio: " .. tostring(stage.Value)
-	end
-	updStage()
-	stage.Changed:Connect(updStage)
-
-	local coins = leaderstats:WaitForChild("Coins") :: IntValue
-	local function updCoins()
-		coinLabel.Text = "🪙 Moedas: " .. tostring(coins.Value)
-	end
-	updCoins()
-	coins.Changed:Connect(updCoins)
-end)
-
--- ---- cronômetro ----
-local startTime = os.clock()
-local won = false
-task.spawn(function()
-	while true do
-		if not won then
-			timeLabel.Text = string.format("⏱️ Tempo: %.1fs", os.clock() - startTime)
-		end
-		task.wait(0.1)
-	end
-end)
-
--- ---- confete 🎉 ----
-local function burstConfetti()
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then
-		return
-	end
-
-	local attachment = Instance.new("Attachment")
-	attachment.Parent = root
-
-	local confetti = Instance.new("ParticleEmitter")
-	confetti.Rate = 0
-	confetti.Lifetime = NumberRange.new(1.5, 3)
-	confetti.Speed = NumberRange.new(20, 40)
-	confetti.SpreadAngle = Vector2.new(180, 180)
-	confetti.Rotation = NumberRange.new(0, 360)
-	confetti.RotSpeed = NumberRange.new(-200, 200)
-	confetti.Size = NumberSequence.new(0.4)
-	confetti.Acceleration = Vector3.new(0, -30, 0)
-	confetti.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 120)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 200, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 90)),
-	})
-	confetti.Parent = attachment
-	confetti:Emit(150)
-
-	task.delay(4, function()
-		attachment:Destroy()
-	end)
-end
-
--- ---- tela de vitória ----
-local function showWinScreen()
-	won = true
-	burstConfetti()
-
-	local finalTime = os.clock() - startTime
-	local coinsValue = 0
-	local leaderstats = player:FindFirstChild("leaderstats")
-	if leaderstats and leaderstats:FindFirstChild("Coins") then
-		coinsValue = (leaderstats.Coins :: IntValue).Value
-	end
-
-	local win = Instance.new("TextLabel")
-	win.AnchorPoint = Vector2.new(0.5, 0.5)
-	win.Position = UDim2.new(0.5, 0, 0.5, 0)
-	win.Size = UDim2.new(0, 560, 0, 200)
-	win.BackgroundColor3 = Color3.fromRGB(28, 190, 120)
-	win.TextColor3 = Color3.fromRGB(255, 255, 255)
-	win.Font = Enum.Font.GothamBlack
-	win.TextScaled = true
-	win.Text = string.format("🏆 VOCÊ VENCEU! 🏆\n⏱️ %.1fs   •   🪙 %d moedas", finalTime, coinsValue)
-	win.BackgroundTransparency = 1
-	win.TextTransparency = 1
-	win.Parent = gui
-
-	local winCorner = Instance.new("UICorner")
-	winCorner.CornerRadius = UDim.new(0, 24)
-	winCorner.Parent = win
-
-	local winStroke = Instance.new("UIStroke")
-	winStroke.Color = Color3.fromRGB(255, 255, 255)
-	winStroke.Thickness = 3
-	winStroke.Transparency = 0.2
-	winStroke.Parent = win
-
-	-- aparece com um "poft" (cresce e fica visível)
-	win.Size = UDim2.new(0, 200, 0, 80)
-	local fadeIn = TweenService:Create(
-		win,
-		TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-		{
-			BackgroundTransparency = 0.05,
-			TextTransparency = 0,
-			Size = UDim2.new(0, 560, 0, 200),
-		}
-	)
-	fadeIn:Play()
-
-	-- some depois de 5 segundos e libera o cronômetro de novo
-	task.delay(5, function()
-		local fadeOut = TweenService:Create(win, TweenInfo.new(0.6), {
-			BackgroundTransparency = 1,
-			TextTransparency = 1,
-		})
-		fadeOut:Play()
-		fadeOut.Completed:Connect(function()
-			win:Destroy()
-		end)
-		won = false
-	end)
-end
-
-local finishedEvent = ReplicatedStorage:WaitForChild("ObbyFinished") :: RemoteEvent
-finishedEvent.OnClientEvent:Connect(showWinScreen)
+local pad = Instance.new("UIPadding")
+pad.PaddingLeft = UDim.new(0, 14)
+pad.PaddingRight = UDim.new(0, 14)
+pad.Parent = hint
 ]]></string>
         </Properties>
       </Item>
