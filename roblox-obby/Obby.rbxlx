@@ -818,13 +818,13 @@ end)
 local Lighting = game:GetService("Lighting")
 
 -- horário/tom geral
-Lighting.ClockTime = 15 -- fim de tarde suave
-Lighting.Brightness = 2.5
-Lighting.ExposureCompensation = 0.15
-Lighting.Ambient = Color3.fromRGB(70, 70, 90)
-Lighting.OutdoorAmbient = Color3.fromRGB(120, 130, 160)
-Lighting.EnvironmentDiffuseScale = 1
-Lighting.EnvironmentSpecularScale = 1
+Lighting.ClockTime = 14 -- tarde
+Lighting.Brightness = 2 -- (era 2.5 e estourava tudo de branco)
+Lighting.ExposureCompensation = 0 -- sem "super brilho" na câmera
+Lighting.Ambient = Color3.fromRGB(80, 80, 95)
+Lighting.OutdoorAmbient = Color3.fromRGB(140, 145, 165)
+Lighting.EnvironmentDiffuseScale = 0.6
+Lighting.EnvironmentSpecularScale = 0.6
 Lighting.GlobalShadows = true
 
 -- limpa efeitos antigos pra não duplicar se rodar de novo
@@ -836,27 +836,27 @@ end
 
 -- atmosfera (dá profundidade e neblina bonita ao longe)
 local atmosphere = Instance.new("Atmosphere")
-atmosphere.Density = 0.32
+atmosphere.Density = 0.28
 atmosphere.Offset = 0.1
 atmosphere.Color = Color3.fromRGB(199, 200, 219)
 atmosphere.Decay = Color3.fromRGB(106, 112, 152)
-atmosphere.Glare = 0.2
-atmosphere.Haze = 1.4
+atmosphere.Glare = 0 -- (era o que mais "estourava" o céu de branco)
+atmosphere.Haze = 0.8
 atmosphere.Parent = Lighting
 
--- brilho nas partes Neon (moedas, lava, chegada brilham lindo)
+-- brilho SÓ nas partes bem neon (moedas, lava, chegada), sem lavar a tela
 local bloom = Instance.new("BloomEffect")
-bloom.Intensity = 0.8
-bloom.Size = 24
-bloom.Threshold = 0.9
+bloom.Intensity = 0.35 -- (era 0.8 — brilho controlado agora)
+bloom.Size = 20
+bloom.Threshold = 1.1 -- só o que é MUITO brilhante ganha o glow
 bloom.Parent = Lighting
 
--- correção de cor: deixa as cores mais vivas e "gostosas"
+-- correção de cor: deixa as cores mais vivas sem exagerar
 local cc = Instance.new("ColorCorrectionEffect")
-cc.Brightness = 0.02
-cc.Contrast = 0.12
-cc.Saturation = 0.18
-cc.TintColor = Color3.fromRGB(255, 250, 245)
+cc.Brightness = 0
+cc.Contrast = 0.08
+cc.Saturation = 0.12
+cc.TintColor = Color3.fromRGB(255, 252, 248)
 cc.Parent = Lighting
 
 -- leve profundidade de campo pra dar aquele charme cinematográfico
