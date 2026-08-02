@@ -13,8 +13,17 @@ copiar script em cada plataforma. 🎮
 | 🔥 Lava / Killer | Mata quem encostar | `Killer` |
 | ↔️ Plataforma móvel | Vai e volta sozinha (TweenService) | `MovingPlatform` |
 | 👻 Plataforma que some | Some quando você pisa, volta depois | `Disappearing` |
-| 🏆 Linha de chegada | Mostra a tela de "Você venceu!" | `Finish` |
-| 🖥️ Interface | Contador de estágio + tela de vitória | (automático) |
+| 🪙 Moedas | Colecionáveis que giram e contam pontos | `Coin` |
+| 🚀 Trampolim | Lança o jogador pro alto | `JumpPad` |
+| ⚡ Faixa de velocidade | Deixa o jogador super rápido por um tempo | `SpeedBoost` |
+| 🌀 Giratório | Parte que gira sem parar (junte com `Killer` = mortal!) | `Spinner` |
+| 🏆 Linha de chegada | Tela de "Você venceu!" com confete, tempo e moedas | `Finish` |
+| 🌌 Iluminação | Visual cinematográfico (céu, bloom, cores vivas) | (automático) |
+| 🖥️ Interface | Contador de estágio, moedas e cronômetro | (automático) |
+
+> 🎮 **Fase de exemplo inclusa:** o script `DemoLevel` monta uma fase grande
+> e jogável automaticamente no primeiro Play. Quando quiser fazer a sua,
+> mude `ENABLED = false` no topo dele (ou apague o script).
 
 Tudo o que dá pra ajustar (velocidade, distância, tempos) está num único
 arquivo fácil: [`src/shared/Config.luau`](src/shared/Config.luau).

@@ -28,6 +28,10 @@ Config.Tags = {
 	MovingPlatform = "MovingPlatform", -- plataforma que vai e volta
 	Disappearing = "Disappearing", -- plataforma que some quando você pisa
 	Finish = "Finish", -- linha de chegada
+	Coin = "Coin", -- moeda que o jogador coleta
+	JumpPad = "JumpPad", -- trampolim: lança o jogador pro alto
+	SpeedBoost = "SpeedBoost", -- deixa o jogador mais rápido por um tempo
+	Spinner = "Spinner", -- obstáculo que gira sem parar
 }
 
 -- Plataforma que se move (vai e volta)
@@ -42,6 +46,30 @@ Config.Disappearing = {
 	delayBeforeVanish = 0.4, -- segundos depois de pisar até sumir
 	respawnTime = 2, -- segundos até voltar
 	warningTransparency = 0.5, -- fica "meio transparente" avisando antes de sumir
+}
+
+-- Moedas
+Config.Coin = {
+	value = 1, -- quantas moedas cada uma vale
+	spinSpeed = 90, -- graus por segundo girando
+	respawnTime = 8, -- segundos até a moeda voltar depois de coletada
+}
+
+-- Trampolim
+Config.JumpPad = {
+	power = 120, -- força do pulo (quanto maior, mais alto)
+}
+
+-- Faixa de velocidade
+Config.SpeedBoost = {
+	walkSpeed = 48, -- velocidade turbinada (a normal é 16)
+	duration = 3, -- segundos que o efeito dura
+}
+
+-- Obstáculo giratório
+Config.Spinner = {
+	speed = 120, -- graus por segundo
+	axis = Vector3.new(0, 1, 0), -- eixo de rotação (Y = gira em pé como um cata-vento deitado)
 }
 
 -- Efeitos de morte / respawn
@@ -187,99 +215,284 @@ end)
     </Item>
     <Item class="Script" referent="5">
       <Properties>
+        <string name="Name">CoinService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- CoinService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Moedas colecionáveis! Partes marcadas com "Coin" giram sozinhas, e quando
+-- o jogador encosta elas somem, dão pontos e voltam depois de um tempo. 🪙
+--
+-- Como usar no Studio: crie uma Part (dourada fica linda), marque com a tag
+-- "Coin". Pronto. O contador aparece sozinho na tela.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local settings = Config.Coin
+
+-- adiciona o contador "Coins" no leaderstats (criado pelo CheckpointService)
+local function setupCoins(player: Player)
+	local leaderstats = player:WaitForChild("leaderstats")
+	if not leaderstats:FindFirstChild("Coins") then
+		local coins = Instance.new("IntValue")
+		coins.Name = "Coins"
+		coins.Value = 0
+		coins.Parent = leaderstats
+	end
+end
+
+Players.PlayerAdded:Connect(setupCoins)
+for _, p in Players:GetPlayers() do
+	task.spawn(setupCoins, p)
+end
+
+local collected: { [BasePart]: boolean } = {}
+
+local function connectCoin(part: BasePart)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Material = Enum.Material.Neon
+	if part.Color == Color3.new(1, 1, 1) then
+		part.Color = Color3.fromRGB(255, 215, 0) -- dourado por padrão
+	end
+
+	-- faz girar sem parar (efeito clássico de moeda)
+	RunService.Heartbeat:Connect(function(dt)
+		if part.Parent and not collected[part] then
+			part.CFrame = part.CFrame * CFrame.Angles(0, math.rad(settings.spinSpeed * dt), 0)
+		end
+	end)
+
+	part.Touched:Connect(function(hit)
+		if collected[part] then
+			return
+		end
+		local character = hit.Parent
+		if not character then
+			return
+		end
+		local player = Players:GetPlayerFromCharacter(character)
+		if not player then
+			return
+		end
+
+		collected[part] = true
+		part.Transparency = 1
+		part.CanCollide = false
+
+		local leaderstats = player:FindFirstChild("leaderstats")
+		local coins = leaderstats and leaderstats:FindFirstChild("Coins") :: IntValue?
+		if coins then
+			coins.Value += settings.value
+		end
+
+		-- volta depois de um tempo
+		task.delay(settings.respawnTime, function()
+			if part.Parent then
+				part.Transparency = 0
+				collected[part] = false
+			end
+		end)
+	end)
+end
+
+for _, inst in CollectionService:GetTagged(Config.Tags.Coin) do
+	if inst:IsA("BasePart") then
+		connectCoin(inst)
+	end
+end
+CollectionService:GetInstanceAddedSignal(Config.Tags.Coin):Connect(function(inst)
+	if inst:IsA("BasePart") then
+		connectCoin(inst)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="6">
+      <Properties>
         <string name="Name">DemoLevel</string>
         <token name="RunContext">0</token>
         <string name="Source"><![CDATA[--!strict
 -- DemoLevel.server.luau  ->  vai em ServerScriptService
 -- =========================================================================
--- Monta AUTOMATICAMENTE uma fase de exemplo jogável quando o jogo abre.
--- É só pra você ter algo pronto no primeiro Play e entender como tudo se
--- encaixa. Quando quiser construir a SUA fase de verdade, é só apagar este
--- script (ou deixar a variável ENABLED como false aqui embaixo).
+-- Monta AUTOMATICAMENTE uma fase de exemplo GRANDE e colorida quando o jogo
+-- abre, usando todos os recursos: moedas, trampolim, velocidade, giratórios,
+-- plataformas que se movem/somem, lava e chegada com confete.
+--
+-- Quando quiser construir a SUA fase do zero, mude ENABLED pra false (ou
+-- apague este script) e comece a colocar seus próprios blocos + tags.
 -- =========================================================================
 
-local ENABLED = true -- mude pra false quando for construir sua própria fase
+local ENABLED = true
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local T = Config.Tags
 
 if not ENABLED then
 	return
 end
 
--- espera um instante pra garantir que os outros serviços já ligaram os
--- "ouvintes" de tags antes da gente criar as partes
-task.wait(0.2)
+task.wait(0.2) -- deixa os outros serviços ligarem os "ouvintes" de tag primeiro
 
 local folder = Instance.new("Folder")
 folder.Name = "DemoLevel"
 folder.Parent = workspace
 
--- helper: cria um bloco no mundo
-local function block(props: { [string]: any }): Part
+-- helper: cria um bloco
+local function block(pos: Vector3, size: Vector3?, color: Color3?, material: Enum.Material?): Part
 	local p = Instance.new("Part")
 	p.Anchored = true
-	p.Size = props.Size or Vector3.new(6, 1, 6)
-	p.Position = props.Position or Vector3.new(0, 5, 0)
-	p.Color = props.Color or Color3.fromRGB(120, 170, 255)
-	p.Material = props.Material or Enum.Material.SmoothPlastic
+	p.Size = size or Vector3.new(6, 1, 6)
+	p.Position = pos
+	p.Color = color or Color3.fromRGB(120, 170, 255)
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = folder
 	return p
 end
 
--- ponto de partida (spawn)
+-- helper: cria uma moeda flutuando acima de uma posição
+local function coin(pos: Vector3)
+	local c = Instance.new("Part")
+	c.Shape = Enum.PartType.Cylinder
+	c.Size = Vector3.new(0.4, 3, 3)
+	c.Orientation = Vector3.new(0, 0, 90) -- deita o cilindro (vira "moeda")
+	c.Position = pos + Vector3.new(0, 4, 0)
+	c.Anchored = true
+	c.CanCollide = false
+	c.Color = Color3.fromRGB(255, 215, 0)
+	c.Material = Enum.Material.Neon
+	c.Parent = folder
+	CollectionService:AddTag(c, T.Coin)
+end
+
+-- helper: checkpoint com número de estágio
+local function checkpoint(pos: Vector3, stage: number)
+	local cp = block(pos, Vector3.new(8, 1, 8), Color3.fromRGB(255, 220, 90))
+	cp:SetAttribute("Stage", stage)
+	CollectionService:AddTag(cp, T.Checkpoint)
+end
+
+-- ======================================================================
+--  INÍCIO
+-- ======================================================================
 local spawn = Instance.new("SpawnLocation")
 spawn.Anchored = true
-spawn.Size = Vector3.new(8, 1, 8)
+spawn.Size = Vector3.new(10, 1, 10)
 spawn.Position = Vector3.new(0, 5, 0)
 spawn.Color = Color3.fromRGB(90, 220, 130)
+spawn.Material = Enum.Material.SmoothPlastic
 spawn.Parent = folder
+checkpoint(Vector3.new(0, 5, 0), 0)
 
--- checkpoint 0 (o começo) -> fica junto do spawn
-local cp0 = block({ Position = Vector3.new(0, 5, 0), Size = Vector3.new(8, 1, 8), Color = Color3.fromRGB(90, 220, 130) })
-cp0:SetAttribute("Stage", 0)
-CollectionService:AddTag(cp0, Config.Tags.Checkpoint)
+-- ======================================================================
+--  SEÇÃO 1 — Aquecimento com moedas (azul)
+-- ======================================================================
+local z = 10
+for i = 1, 4 do
+	block(Vector3.new(0, 5, z), Vector3.new(6, 1, 6), Color3.fromRGB(90, 160, 255))
+	coin(Vector3.new(0, 5, z))
+	z += 9
+end
+checkpoint(Vector3.new(0, 5, z), 1)
+z += 12
 
--- alguns degraus pra frente (eixo Z crescente)
-block({ Position = Vector3.new(0, 5, 10) })
-block({ Position = Vector3.new(0, 5, 20) })
+-- ======================================================================
+--  SEÇÃO 2 — Lava e giratório mortal (vermelho)
+-- ======================================================================
+-- fosso de lava largo (pule por cima com cuidado!)
+local lava = block(Vector3.new(0, 4.6, z + 3), Vector3.new(6, 1, 14), Color3.fromRGB(230, 70, 50), Enum.Material.Neon)
+CollectionService:AddTag(lava, T.Killer)
+-- ilha no meio
+block(Vector3.new(0, 5, z + 3), Vector3.new(5, 1, 5), Color3.fromRGB(120, 120, 130))
+z += 16
 
--- lava no meio do caminho (pule por cima!)
-local lava = block({ Position = Vector3.new(0, 5, 30), Size = Vector3.new(6, 1, 6), Color = Color3.fromRGB(230, 70, 50), Material = Enum.Material.Neon })
-CollectionService:AddTag(lava, Config.Tags.Killer)
+-- barra giratória mortal (um cilindro que gira e te derruba)
+local platform = block(Vector3.new(0, 5, z), Vector3.new(8, 1, 8), Color3.fromRGB(120, 120, 130))
+local spinner = Instance.new("Part")
+spinner.Anchored = true
+spinner.Size = Vector3.new(14, 1.4, 1.4)
+spinner.Position = Vector3.new(0, 6.5, z)
+spinner.Color = Color3.fromRGB(255, 90, 60)
+spinner.Material = Enum.Material.Neon
+spinner.Parent = folder
+CollectionService:AddTag(spinner, T.Spinner)
+CollectionService:AddTag(spinner, T.Killer) -- gira E mata: desvie ou pule!
+z += 14
+checkpoint(Vector3.new(0, 5, z), 2)
+z += 12
 
--- plataforma do outro lado da lava
-block({ Position = Vector3.new(0, 5, 40) })
+-- ======================================================================
+--  SEÇÃO 3 — Trampolim e plataformas móveis (roxo)
+-- ======================================================================
+-- trampolim pra atravessar um vão enorme
+local pad = block(Vector3.new(0, 5, z), Vector3.new(6, 1, 6), Color3.fromRGB(120, 255, 180), Enum.Material.Neon)
+CollectionService:AddTag(pad, T.JumpPad)
+z += 20 -- vão grande, só passa pulando alto no trampolim
 
--- checkpoint 1
-local cp1 = block({ Position = Vector3.new(0, 5, 50), Color = Color3.fromRGB(255, 220, 90) })
-cp1:SetAttribute("Stage", 1)
-CollectionService:AddTag(cp1, Config.Tags.Checkpoint)
+-- plataforma que se move (aterrissagem)
+local mover1 = block(Vector3.new(0, 9, z), Vector3.new(7, 1, 7), Color3.fromRGB(180, 120, 255))
+CollectionService:AddTag(mover1, T.MovingPlatform)
+mover1:SetAttribute("Distance", 12)
+mover1:SetAttribute("Time", 2)
+z += 16
 
--- plataforma que se move (vai e volta no eixo X)
-local mover = block({ Position = Vector3.new(0, 5, 62), Color = Color3.fromRGB(180, 120, 255) })
-CollectionService:AddTag(mover, Config.Tags.MovingPlatform)
+local mover2 = block(Vector3.new(0, 9, z), Vector3.new(7, 1, 7), Color3.fromRGB(180, 120, 255))
+CollectionService:AddTag(mover2, T.MovingPlatform)
+mover2:SetAttribute("Distance", 10)
+mover2:SetAttribute("Time", 1.3)
+mover2:SetAttribute("AxisX", 0)
+mover2:SetAttribute("AxisZ", 1) -- essa se move pra frente/trás
+z += 16
+checkpoint(Vector3.new(0, 9, z), 3)
+z += 12
 
--- plataforma que some quando você pisa
-local vanish = block({ Position = Vector3.new(0, 5, 74), Color = Color3.fromRGB(255, 150, 200) })
-CollectionService:AddTag(vanish, Config.Tags.Disappearing)
+-- ======================================================================
+--  SEÇÃO 4 — Corredor de velocidade + plataformas que somem (rosa)
+-- ======================================================================
+-- faixa de velocidade
+local boost = block(Vector3.new(0, 9, z), Vector3.new(6, 1, 10), Color3.fromRGB(255, 240, 120), Enum.Material.Neon)
+CollectionService:AddTag(boost, T.SpeedBoost)
+z += 14
 
--- checkpoint 2
-local cp2 = block({ Position = Vector3.new(0, 5, 84), Color = Color3.fromRGB(255, 220, 90) })
-cp2:SetAttribute("Stage", 2)
-CollectionService:AddTag(cp2, Config.Tags.Checkpoint)
+-- ponte de plataformas que somem (corra rápido!)
+for i = 1, 4 do
+	local vanish = block(Vector3.new(0, 9, z), Vector3.new(5, 1, 5), Color3.fromRGB(255, 150, 200))
+	CollectionService:AddTag(vanish, T.Disappearing)
+	coin(Vector3.new(0, 9, z))
+	z += 8
+end
+z += 6
+checkpoint(Vector3.new(0, 9, z), 4)
+z += 12
 
--- linha de chegada 🏆
-local finish = block({ Position = Vector3.new(0, 5, 94), Size = Vector3.new(10, 1, 10), Color = Color3.fromRGB(255, 215, 0), Material = Enum.Material.Neon })
-CollectionService:AddTag(finish, Config.Tags.Finish)
+-- ======================================================================
+--  CHEGADA 🏆
+-- ======================================================================
+local finish = block(Vector3.new(0, 9, z), Vector3.new(12, 1, 12), Color3.fromRGB(255, 215, 0), Enum.Material.Neon)
+CollectionService:AddTag(finish, T.Finish)
 
-print("[Obby] Fase de exemplo montada! Aperte Play e pule até a chegada. 🏁")
+-- arco decorativo na chegada
+for _, side in { -5, 5 } do
+	local pillar = block(Vector3.new(side, 13, z), Vector3.new(1.5, 9, 1.5), Color3.fromRGB(255, 215, 0), Enum.Material.Neon)
+	pillar.Anchored = true
+end
+
+print("[Obby] Fase MEGA montada! Colete moedas, use os trampolins e corra até a chegada. 🏁🎉")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="6">
+    <Item class="Script" referent="7">
       <Properties>
         <string name="Name">DisappearingPlatformService</string>
         <token name="RunContext">0</token>
@@ -355,7 +568,7 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="7">
+    <Item class="Script" referent="8">
       <Properties>
         <string name="Name">FinishService</string>
         <token name="RunContext">0</token>
@@ -431,7 +644,113 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="8">
+    <Item class="Script" referent="9">
+      <Properties>
+        <string name="Name">GimmicksService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- GimmicksService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Junta três "brinquedinhos" que deixam o obby MUITO mais divertido:
+--   🚀 JumpPad    -> trampolim, lança o jogador pro alto
+--   ⚡ SpeedBoost -> deixa o jogador super rápido por alguns segundos
+--   🌀 Spinner    -> parte que gira sem parar (combine com "Killer" pra virar
+--                    um obstáculo mortal de derrubar!)
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+-- ---------------------------------------------------------------- JumpPad
+local function connectJumpPad(part: BasePart)
+	part.Anchored = true
+	local debounce: { [Model]: boolean } = {}
+	part.Touched:Connect(function(hit)
+		local character = hit.Parent :: Model?
+		if not character or debounce[character] then
+			return
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if humanoid and root and humanoid.Health > 0 and Players:GetPlayerFromCharacter(character) then
+			debounce[character] = true
+			root.AssemblyLinearVelocity = Vector3.new(
+				root.AssemblyLinearVelocity.X,
+				Config.JumpPad.power,
+				root.AssemblyLinearVelocity.Z
+			)
+			task.delay(0.3, function()
+				debounce[character] = nil
+			end)
+		end
+	end)
+end
+
+-- ------------------------------------------------------------- SpeedBoost
+local function connectSpeedBoost(part: BasePart)
+	part.Anchored = true
+	local debounce: { [Humanoid]: boolean } = {}
+	part.Touched:Connect(function(hit)
+		local character = hit.Parent
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if not humanoid or humanoid.Health <= 0 or debounce[humanoid] then
+			return
+		end
+		if not Players:GetPlayerFromCharacter(character) then
+			return
+		end
+		debounce[humanoid] = true
+		local original = humanoid.WalkSpeed
+		humanoid.WalkSpeed = Config.SpeedBoost.walkSpeed
+		task.delay(Config.SpeedBoost.duration, function()
+			if humanoid.Parent then
+				humanoid.WalkSpeed = original
+			end
+			debounce[humanoid] = nil
+		end)
+	end)
+end
+
+-- ---------------------------------------------------------------- Spinner
+local function connectSpinner(part: BasePart)
+	part.Anchored = true
+	local axis = Config.Spinner.axis
+	RunService.Heartbeat:Connect(function(dt)
+		if part.Parent then
+			local angle = math.rad(Config.Spinner.speed * dt)
+			part.CFrame = part.CFrame * CFrame.Angles(axis.X * angle, axis.Y * angle, axis.Z * angle)
+		end
+	end)
+end
+
+-- helper genérico: liga um conector em todas as partes de uma tag (agora e no futuro)
+local function bind(tag: string, fn: (BasePart) -> ())
+	for _, inst in CollectionService:GetTagged(tag) do
+		if inst:IsA("BasePart") then
+			fn(inst)
+		end
+	end
+	CollectionService:GetInstanceAddedSignal(tag):Connect(function(inst)
+		if inst:IsA("BasePart") then
+			fn(inst)
+		end
+	end)
+end
+
+bind(Config.Tags.JumpPad, connectJumpPad)
+bind(Config.Tags.SpeedBoost, connectSpeedBoost)
+bind(Config.Tags.Spinner, connectSpinner)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="10">
       <Properties>
         <string name="Name">KillPartService</string>
         <token name="RunContext">0</token>
@@ -484,7 +803,73 @@ end)
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Script" referent="9">
+    <Item class="Script" referent="11">
+      <Properties>
+        <string name="Name">LightingSetup</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- LightingSetup.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Dá aquele visual "uau" de jogo profissional: céu bonito, atmosfera,
+-- brilho (bloom) e correção de cor. Sem isso o jogo fica com cara de
+-- Baseplate cru; com isso fica com cara de jogo de verdade. ✨
+-- =========================================================================
+
+local Lighting = game:GetService("Lighting")
+
+-- horário/tom geral
+Lighting.ClockTime = 15 -- fim de tarde suave
+Lighting.Brightness = 2.5
+Lighting.ExposureCompensation = 0.15
+Lighting.Ambient = Color3.fromRGB(70, 70, 90)
+Lighting.OutdoorAmbient = Color3.fromRGB(120, 130, 160)
+Lighting.EnvironmentDiffuseScale = 1
+Lighting.EnvironmentSpecularScale = 1
+Lighting.GlobalShadows = true
+
+-- limpa efeitos antigos pra não duplicar se rodar de novo
+for _, obj in Lighting:GetChildren() do
+	if obj:IsA("PostEffect") or obj:IsA("Atmosphere") or obj:IsA("Sky") then
+		obj:Destroy()
+	end
+end
+
+-- atmosfera (dá profundidade e neblina bonita ao longe)
+local atmosphere = Instance.new("Atmosphere")
+atmosphere.Density = 0.32
+atmosphere.Offset = 0.1
+atmosphere.Color = Color3.fromRGB(199, 200, 219)
+atmosphere.Decay = Color3.fromRGB(106, 112, 152)
+atmosphere.Glare = 0.2
+atmosphere.Haze = 1.4
+atmosphere.Parent = Lighting
+
+-- brilho nas partes Neon (moedas, lava, chegada brilham lindo)
+local bloom = Instance.new("BloomEffect")
+bloom.Intensity = 0.8
+bloom.Size = 24
+bloom.Threshold = 0.9
+bloom.Parent = Lighting
+
+-- correção de cor: deixa as cores mais vivas e "gostosas"
+local cc = Instance.new("ColorCorrectionEffect")
+cc.Brightness = 0.02
+cc.Contrast = 0.12
+cc.Saturation = 0.18
+cc.TintColor = Color3.fromRGB(255, 250, 245)
+cc.Parent = Lighting
+
+-- leve profundidade de campo pra dar aquele charme cinematográfico
+local dof = Instance.new("DepthOfFieldEffect")
+dof.FarIntensity = 0.15
+dof.FocusDistance = 30
+dof.InFocusRadius = 60
+dof.NearIntensity = 0
+dof.Parent = Lighting
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="12">
       <Properties>
         <string name="Name">MovingPlatformService</string>
         <token name="RunContext">0</token>
@@ -555,26 +940,25 @@ end)
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="10">
+  <Item class="StarterPlayer" referent="13">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="11">
+    <Item class="StarterPlayerScripts" referent="14">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="12">
+      <Item class="LocalScript" referent="15">
         <Properties>
           <string name="Name">StageGui</string>
           <string name="Source"><![CDATA[--!strict
 -- StageGui.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
 -- =========================================================================
--- Monta na tela do jogador:
---   * um contador "Estágio: N" no topo
---   * uma tela grande de "VOCÊ VENCEU! 🏆" quando chega no Finish
---
--- Tudo criado por código, então você não precisa desenhar GUI no Studio.
--- Depois, se quiser deixar bonito, é só mexer nas cores/posições aqui.
+-- Interface do jogo, tudo feito por código:
+--   * "Estágio: N"  no topo
+--   * "🪙 Moedas: N" logo abaixo
+--   * "⏱️ Tempo: N s" cronômetro correndo
+--   * tela grande de "VOCÊ VENCEU!" com CONFETE quando chega no Finish 🎉
 -- =========================================================================
 
 local Players = game:GetService("Players")
@@ -587,68 +971,160 @@ local player = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "ObbyGui"
 gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- ---- Contador de estágio ----
-local stageLabel = Instance.new("TextLabel")
-stageLabel.Name = "StageLabel"
-stageLabel.AnchorPoint = Vector2.new(0.5, 0)
-stageLabel.Position = UDim2.new(0.5, 0, 0.03, 0)
-stageLabel.Size = UDim2.new(0, 220, 0, 48)
-stageLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-stageLabel.BackgroundTransparency = 0.25
-stageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-stageLabel.Font = Enum.Font.GothamBold
-stageLabel.TextScaled = true
-stageLabel.Text = "Estágio: 0"
-stageLabel.Parent = gui
+-- helper pra criar os "cartõezinhos" de informação no topo
+local function makeInfoCard(order: number, text: string): TextLabel
+	local label = Instance.new("TextLabel")
+	label.AnchorPoint = Vector2.new(0.5, 0)
+	label.Position = UDim2.new(0.5, 0, 0.02 + (order * 0.065), 0)
+	label.Size = UDim2.new(0, 240, 0, 46)
+	label.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+	label.BackgroundTransparency = 0.2
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.Text = text
+	label.Parent = gui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = stageLabel
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = label
 
--- Segue o valor "Stage" do leaderstats e atualiza o texto
-local function watchStage()
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 14)
+	pad.PaddingRight = UDim.new(0, 14)
+	pad.Parent = label
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(120, 140, 255)
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.3
+	stroke.Parent = label
+
+	return label
+end
+
+local stageLabel = makeInfoCard(0, "Estágio: 0")
+local coinLabel = makeInfoCard(1, "🪙 Moedas: 0")
+local timeLabel = makeInfoCard(2, "⏱️ Tempo: 0.0s")
+
+-- ---- segue os valores do leaderstats ----
+task.spawn(function()
 	local leaderstats = player:WaitForChild("leaderstats")
-	local stage = leaderstats:WaitForChild("Stage") :: IntValue
 
-	local function update()
+	local stage = leaderstats:WaitForChild("Stage") :: IntValue
+	local function updStage()
 		stageLabel.Text = "Estágio: " .. tostring(stage.Value)
 	end
-	update()
-	stage.Changed:Connect(update)
-end
-task.spawn(watchStage)
+	updStage()
+	stage.Changed:Connect(updStage)
 
--- ---- Tela de vitória ----
+	local coins = leaderstats:WaitForChild("Coins") :: IntValue
+	local function updCoins()
+		coinLabel.Text = "🪙 Moedas: " .. tostring(coins.Value)
+	end
+	updCoins()
+	coins.Changed:Connect(updCoins)
+end)
+
+-- ---- cronômetro ----
+local startTime = os.clock()
+local won = false
+task.spawn(function()
+	while true do
+		if not won then
+			timeLabel.Text = string.format("⏱️ Tempo: %.1fs", os.clock() - startTime)
+		end
+		task.wait(0.1)
+	end
+end)
+
+-- ---- confete 🎉 ----
+local function burstConfetti()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = root
+
+	local confetti = Instance.new("ParticleEmitter")
+	confetti.Rate = 0
+	confetti.Lifetime = NumberRange.new(1.5, 3)
+	confetti.Speed = NumberRange.new(20, 40)
+	confetti.SpreadAngle = Vector2.new(180, 180)
+	confetti.Rotation = NumberRange.new(0, 360)
+	confetti.RotSpeed = NumberRange.new(-200, 200)
+	confetti.Size = NumberSequence.new(0.4)
+	confetti.Acceleration = Vector3.new(0, -30, 0)
+	confetti.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 120)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 200, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 90)),
+	})
+	confetti.Parent = attachment
+	confetti:Emit(150)
+
+	task.delay(4, function()
+		attachment:Destroy()
+	end)
+end
+
+-- ---- tela de vitória ----
 local function showWinScreen()
+	won = true
+	burstConfetti()
+
+	local finalTime = os.clock() - startTime
+	local coinsValue = 0
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats and leaderstats:FindFirstChild("Coins") then
+		coinsValue = (leaderstats.Coins :: IntValue).Value
+	end
+
 	local win = Instance.new("TextLabel")
 	win.AnchorPoint = Vector2.new(0.5, 0.5)
 	win.Position = UDim2.new(0.5, 0, 0.5, 0)
-	win.Size = UDim2.new(0, 500, 0, 140)
-	win.BackgroundColor3 = Color3.fromRGB(30, 200, 120)
+	win.Size = UDim2.new(0, 560, 0, 200)
+	win.BackgroundColor3 = Color3.fromRGB(28, 190, 120)
 	win.TextColor3 = Color3.fromRGB(255, 255, 255)
 	win.Font = Enum.Font.GothamBlack
 	win.TextScaled = true
-	win.Text = "VOCÊ VENCEU! 🏆"
+	win.Text = string.format("🏆 VOCÊ VENCEU! 🏆\n⏱️ %.1fs   •   🪙 %d moedas", finalTime, coinsValue)
 	win.BackgroundTransparency = 1
 	win.TextTransparency = 1
 	win.Parent = gui
 
 	local winCorner = Instance.new("UICorner")
-	winCorner.CornerRadius = UDim.new(0, 20)
+	winCorner.CornerRadius = UDim.new(0, 24)
 	winCorner.Parent = win
 
-	-- aparece suave
-	local fadeIn = TweenService:Create(win, TweenInfo.new(0.4), {
-		BackgroundTransparency = 0.1,
-		TextTransparency = 0,
-	})
+	local winStroke = Instance.new("UIStroke")
+	winStroke.Color = Color3.fromRGB(255, 255, 255)
+	winStroke.Thickness = 3
+	winStroke.Transparency = 0.2
+	winStroke.Parent = win
+
+	-- aparece com um "poft" (cresce e fica visível)
+	win.Size = UDim2.new(0, 200, 0, 80)
+	local fadeIn = TweenService:Create(
+		win,
+		TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{
+			BackgroundTransparency = 0.05,
+			TextTransparency = 0,
+			Size = UDim2.new(0, 560, 0, 200),
+		}
+	)
 	fadeIn:Play()
 
-	-- some depois de 4 segundos
-	task.delay(4, function()
+	-- some depois de 5 segundos e libera o cronômetro de novo
+	task.delay(5, function()
 		local fadeOut = TweenService:Create(win, TweenInfo.new(0.6), {
 			BackgroundTransparency = 1,
 			TextTransparency = 1,
@@ -657,6 +1133,7 @@ local function showWinScreen()
 		fadeOut.Completed:Connect(function()
 			win:Destroy()
 		end)
+		won = false
 	end)
 end
 
