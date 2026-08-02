@@ -1,0 +1,670 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[--!strict
+-- Config.luau
+-- =========================================================================
+-- Aqui ficam TODOS os "botões de ajuste" do jogo.
+-- Quer deixar a lava mais mortal? A plataforma mais rápida? É tudo aqui.
+-- Mexa nos números, dê play, e veja o resultado. Isso é vibecoding. 🎮
+-- =========================================================================
+
+local Config = {}
+
+-- Nomes das tags que você vai colocar nas partes dentro do Roblox Studio.
+-- (Use a aba "Tags" no Studio, ou o plugin "Tag Editor").
+Config.Tags = {
+	Checkpoint = "Checkpoint", -- parte que salva o progresso do jogador
+	Killer = "Killer", -- lava / espinhos: mata quem encostar
+	MovingPlatform = "MovingPlatform", -- plataforma que vai e volta
+	Disappearing = "Disappearing", -- plataforma que some quando você pisa
+	Finish = "Finish", -- linha de chegada
+}
+
+-- Plataforma que se move (vai e volta)
+Config.MovingPlatform = {
+	distance = 16, -- quantos studs ela anda
+	time = 2, -- segundos pra ir de um lado ao outro
+	axis = Vector3.new(1, 0, 0), -- direção do movimento (X aqui). Use (0,0,1) pra Z, etc.
+}
+
+-- Plataforma que some quando você pisa
+Config.Disappearing = {
+	delayBeforeVanish = 0.4, -- segundos depois de pisar até sumir
+	respawnTime = 2, -- segundos até voltar
+	warningTransparency = 0.5, -- fica "meio transparente" avisando antes de sumir
+}
+
+-- Efeitos de morte / respawn
+Config.Respawn = {
+	killMessageEnabled = true,
+}
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="3">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="4">
+      <Properties>
+        <string name="Name">CheckpointService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- CheckpointService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Controla os CHECKPOINTS (as bandeirinhas de salvamento) do obby.
+--
+-- Como usar no Studio:
+--   1. Crie uma Part pra cada checkpoint.
+--   2. Marque cada uma com a tag "Checkpoint".
+--   3. Em cada Part, adicione um Atributo (aba Properties -> Attributes)
+--      chamado "Stage" do tipo number: 0, 1, 2, 3...
+--      (0 = o spawn inicial, 1 = primeiro checkpoint, e assim por diante)
+--
+-- O jogo cuida do resto: quando o jogador encosta num checkpoint com número
+-- MAIOR que o atual, o progresso é salvo e ele passa a renascer ali.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+-- Guarda o CFrame (posição) do checkpoint de cada jogador
+local checkpointOf: { [Player]: CFrame } = {}
+
+-- Descobre o número do estágio de uma parte de checkpoint
+local function stageNumberOf(part: BasePart): number
+	local attr = part:GetAttribute("Stage")
+	if typeof(attr) == "number" then
+		return attr
+	end
+	return 0
+end
+
+-- Cria o leaderstats ("Stage" aparece na tabela de placar do canto da tela)
+local function setupLeaderstats(player: Player)
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local stage = Instance.new("IntValue")
+	stage.Name = "Stage"
+	stage.Value = 0
+	stage.Parent = leaderstats
+end
+
+-- Teleporta o personagem pra cima do checkpoint atual
+local function spawnAtCheckpoint(player: Player, character: Model)
+	local cf = checkpointOf[player]
+	if not cf then
+		return
+	end
+	local root = character:WaitForChild("HumanoidRootPart", 5) :: BasePart?
+	if root then
+		-- +5 studs pra não nascer preso dentro da parte
+		root.CFrame = cf + Vector3.new(0, 5, 0)
+	end
+end
+
+local function onCharacterAdded(player: Player, character: Model)
+	spawnAtCheckpoint(player, character)
+end
+
+local function onPlayerAdded(player: Player)
+	checkpointOf[player] = nil
+	setupLeaderstats(player)
+
+	player.CharacterAdded:Connect(function(character)
+		onCharacterAdded(player, character)
+	end)
+end
+
+-- Liga o "detector de toque" num checkpoint
+local function connectCheckpoint(part: BasePart)
+	part.Touched:Connect(function(hit)
+		local character = hit.Parent
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if not humanoid or humanoid.Health <= 0 then
+			return
+		end
+		local player = Players:GetPlayerFromCharacter(character)
+		if not player then
+			return
+		end
+
+		local newStage = stageNumberOf(part)
+		local stageValue = player:FindFirstChild("leaderstats")
+			and player.leaderstats:FindFirstChild("Stage") :: IntValue?
+
+		if stageValue and newStage > stageValue.Value then
+			stageValue.Value = newStage
+			checkpointOf[player] = part.CFrame
+			-- feedbackzinho verde no checkpoint recém-alcançado
+			part.Color = Color3.fromRGB(80, 220, 120)
+		end
+	end)
+end
+
+-- ---- Inicialização ----
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(function(player)
+	checkpointOf[player] = nil
+end)
+
+-- Conecta todos os checkpoints que já existem e os que forem criados depois
+for _, inst in CollectionService:GetTagged(Config.Tags.Checkpoint) do
+	if inst:IsA("BasePart") then
+		connectCheckpoint(inst)
+	end
+end
+CollectionService:GetInstanceAddedSignal(Config.Tags.Checkpoint):Connect(function(inst)
+	if inst:IsA("BasePart") then
+		connectCheckpoint(inst)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="5">
+      <Properties>
+        <string name="Name">DemoLevel</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- DemoLevel.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Monta AUTOMATICAMENTE uma fase de exemplo jogável quando o jogo abre.
+-- É só pra você ter algo pronto no primeiro Play e entender como tudo se
+-- encaixa. Quando quiser construir a SUA fase de verdade, é só apagar este
+-- script (ou deixar a variável ENABLED como false aqui embaixo).
+-- =========================================================================
+
+local ENABLED = true -- mude pra false quando for construir sua própria fase
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+if not ENABLED then
+	return
+end
+
+-- espera um instante pra garantir que os outros serviços já ligaram os
+-- "ouvintes" de tags antes da gente criar as partes
+task.wait(0.2)
+
+local folder = Instance.new("Folder")
+folder.Name = "DemoLevel"
+folder.Parent = workspace
+
+-- helper: cria um bloco no mundo
+local function block(props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.Size = props.Size or Vector3.new(6, 1, 6)
+	p.Position = props.Position or Vector3.new(0, 5, 0)
+	p.Color = props.Color or Color3.fromRGB(120, 170, 255)
+	p.Material = props.Material or Enum.Material.SmoothPlastic
+	p.Parent = folder
+	return p
+end
+
+-- ponto de partida (spawn)
+local spawn = Instance.new("SpawnLocation")
+spawn.Anchored = true
+spawn.Size = Vector3.new(8, 1, 8)
+spawn.Position = Vector3.new(0, 5, 0)
+spawn.Color = Color3.fromRGB(90, 220, 130)
+spawn.Parent = folder
+
+-- checkpoint 0 (o começo) -> fica junto do spawn
+local cp0 = block({ Position = Vector3.new(0, 5, 0), Size = Vector3.new(8, 1, 8), Color = Color3.fromRGB(90, 220, 130) })
+cp0:SetAttribute("Stage", 0)
+CollectionService:AddTag(cp0, Config.Tags.Checkpoint)
+
+-- alguns degraus pra frente (eixo Z crescente)
+block({ Position = Vector3.new(0, 5, 10) })
+block({ Position = Vector3.new(0, 5, 20) })
+
+-- lava no meio do caminho (pule por cima!)
+local lava = block({ Position = Vector3.new(0, 5, 30), Size = Vector3.new(6, 1, 6), Color = Color3.fromRGB(230, 70, 50), Material = Enum.Material.Neon })
+CollectionService:AddTag(lava, Config.Tags.Killer)
+
+-- plataforma do outro lado da lava
+block({ Position = Vector3.new(0, 5, 40) })
+
+-- checkpoint 1
+local cp1 = block({ Position = Vector3.new(0, 5, 50), Color = Color3.fromRGB(255, 220, 90) })
+cp1:SetAttribute("Stage", 1)
+CollectionService:AddTag(cp1, Config.Tags.Checkpoint)
+
+-- plataforma que se move (vai e volta no eixo X)
+local mover = block({ Position = Vector3.new(0, 5, 62), Color = Color3.fromRGB(180, 120, 255) })
+CollectionService:AddTag(mover, Config.Tags.MovingPlatform)
+
+-- plataforma que some quando você pisa
+local vanish = block({ Position = Vector3.new(0, 5, 74), Color = Color3.fromRGB(255, 150, 200) })
+CollectionService:AddTag(vanish, Config.Tags.Disappearing)
+
+-- checkpoint 2
+local cp2 = block({ Position = Vector3.new(0, 5, 84), Color = Color3.fromRGB(255, 220, 90) })
+cp2:SetAttribute("Stage", 2)
+CollectionService:AddTag(cp2, Config.Tags.Checkpoint)
+
+-- linha de chegada 🏆
+local finish = block({ Position = Vector3.new(0, 5, 94), Size = Vector3.new(10, 1, 10), Color = Color3.fromRGB(255, 215, 0), Material = Enum.Material.Neon })
+CollectionService:AddTag(finish, Config.Tags.Finish)
+
+print("[Obby] Fase de exemplo montada! Aperte Play e pule até a chegada. 🏁")
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="6">
+      <Properties>
+        <string name="Name">DisappearingPlatformService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- DisappearingPlatformService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Plataformas marcadas com "Disappearing" somem quando o jogador pisa,
+-- e voltam depois de um tempo. Aquele frio na barriga do obby. 😅
+--
+-- Como usar no Studio:
+--   1. Crie a Part (Anchored = true).
+--   2. Marque com a tag "Disappearing".
+--   Tempos de sumiço/volta ficam no Config.luau.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local settings = Config.Disappearing
+
+-- evita disparar várias vezes enquanto a plataforma já está sumindo
+local vanishing: { [BasePart]: boolean } = {}
+
+local function vanishAndReturn(part: BasePart)
+	if vanishing[part] then
+		return
+	end
+	vanishing[part] = true
+
+	local originalTransparency = part.Transparency
+
+	-- 1) aviso: fica meio transparente
+	part.Transparency = settings.warningTransparency
+	task.wait(settings.delayBeforeVanish)
+
+	-- 2) some de vez (invisível e sem colisão)
+	part.Transparency = 1
+	part.CanCollide = false
+
+	-- 3) espera e volta ao normal
+	task.wait(settings.respawnTime)
+	part.Transparency = originalTransparency
+	part.CanCollide = true
+
+	vanishing[part] = false
+end
+
+local function connectPlatform(part: BasePart)
+	part.Touched:Connect(function(hit)
+		local character = hit.Parent
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid and humanoid.Health > 0 and Players:GetPlayerFromCharacter(character) then
+			task.spawn(vanishAndReturn, part)
+		end
+	end)
+end
+
+for _, inst in CollectionService:GetTagged(Config.Tags.Disappearing) do
+	if inst:IsA("BasePart") then
+		connectPlatform(inst)
+	end
+end
+CollectionService:GetInstanceAddedSignal(Config.Tags.Disappearing):Connect(function(inst)
+	if inst:IsA("BasePart") then
+		connectPlatform(inst)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="7">
+      <Properties>
+        <string name="Name">FinishService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- FinishService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Detecta quando o jogador chega na parte marcada com "Finish" e avisa
+-- o cliente pra mostrar a tela de "VOCÊ VENCEU!". 🏆
+--
+-- Como usar no Studio:
+--   1. Crie a Part da chegada.
+--   2. Marque com a tag "Finish".
+--   O RemoteEvent "ObbyFinished" é criado automaticamente em ReplicatedStorage.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+-- cria (ou reaproveita) o RemoteEvent usado pra avisar o cliente
+local finishedEvent = ReplicatedStorage:FindFirstChild("ObbyFinished") :: RemoteEvent?
+if not finishedEvent then
+	finishedEvent = Instance.new("RemoteEvent")
+	finishedEvent.Name = "ObbyFinished"
+	finishedEvent.Parent = ReplicatedStorage
+end
+
+-- pra não spammar o cliente enquanto o jogador fica em cima da chegada
+local alreadyWon: { [Player]: boolean } = {}
+
+Players.PlayerRemoving:Connect(function(player)
+	alreadyWon[player] = nil
+end)
+
+local function connectFinish(part: BasePart)
+	part.Touched:Connect(function(hit)
+		local character = hit.Parent
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if not humanoid or humanoid.Health <= 0 then
+			return
+		end
+		local player = Players:GetPlayerFromCharacter(character)
+		if not player or alreadyWon[player] then
+			return
+		end
+
+		alreadyWon[player] = true
+		local event = finishedEvent :: RemoteEvent
+		event:FireClient(player)
+
+		-- libera de novo depois de alguns segundos, caso queira rejogar
+		task.delay(5, function()
+			alreadyWon[player] = false
+		end)
+	end)
+end
+
+for _, inst in CollectionService:GetTagged(Config.Tags.Finish) do
+	if inst:IsA("BasePart") then
+		connectFinish(inst)
+	end
+end
+CollectionService:GetInstanceAddedSignal(Config.Tags.Finish):Connect(function(inst)
+	if inst:IsA("BasePart") then
+		connectFinish(inst)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="8">
+      <Properties>
+        <string name="Name">KillPartService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- KillPartService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Faz qualquer parte marcada com a tag "Killer" matar o jogador que encostar.
+-- Perfeito pra lava, espinhos, água ácida, o que a criatividade mandar. 🔥
+--
+-- Como usar no Studio:
+--   1. Crie a Part (ex: um bloco vermelho de "lava").
+--   2. Marque com a tag "Killer".
+--   Pronto. Encostou, morreu, e o CheckpointService renasce o jogador
+--   no último checkpoint.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+local function connectKiller(part: BasePart)
+	part.Touched:Connect(function(hit)
+		local character = hit.Parent
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid and humanoid.Health > 0 then
+			-- só mata jogadores de verdade (evita matar NPCs por acidente,
+			-- se você não quiser — basta remover esta checagem)
+			if Players:GetPlayerFromCharacter(character) then
+				humanoid.Health = 0
+			end
+		end
+	end)
+end
+
+for _, inst in CollectionService:GetTagged(Config.Tags.Killer) do
+	if inst:IsA("BasePart") then
+		connectKiller(inst)
+	end
+end
+CollectionService:GetInstanceAddedSignal(Config.Tags.Killer):Connect(function(inst)
+	if inst:IsA("BasePart") then
+		connectKiller(inst)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="9">
+      <Properties>
+        <string name="Name">MovingPlatformService</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!strict
+-- MovingPlatformService.server.luau  ->  vai em ServerScriptService
+-- =========================================================================
+-- Faz plataformas marcadas com "MovingPlatform" irem e voltarem sozinhas.
+-- Ótimo pra deixar o obby mais desafiador (timing!).
+--
+-- Como usar no Studio:
+--   1. Crie a Part e deixe ela "Anchored" (Ancorada) = true.
+--   2. Marque com a tag "MovingPlatform".
+--   Distância, velocidade e direção você ajusta no Config.luau,
+--   ou por parte usando os Atributos opcionais:
+--      "Distance" (number), "Time" (number), "AxisX/AxisY/AxisZ" (number)
+-- =========================================================================
+
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+
+local function numberAttr(part: BasePart, name: string, default: number): number
+	local v = part:GetAttribute(name)
+	return typeof(v) == "number" and v or default
+end
+
+local function startMoving(part: BasePart)
+	-- garante que fica ancorada, senão a física briga com o tween
+	part.Anchored = true
+
+	local distance = numberAttr(part, "Distance", Config.MovingPlatform.distance)
+	local moveTime = numberAttr(part, "Time", Config.MovingPlatform.time)
+
+	local axis = Vector3.new(
+		numberAttr(part, "AxisX", Config.MovingPlatform.axis.X),
+		numberAttr(part, "AxisY", Config.MovingPlatform.axis.Y),
+		numberAttr(part, "AxisZ", Config.MovingPlatform.axis.Z)
+	)
+
+	local startCFrame = part.CFrame
+	local goalCFrame = startCFrame + (axis * distance)
+
+	local info = TweenInfo.new(
+		moveTime,
+		Enum.EasingStyle.Sine,
+		Enum.EasingDirection.InOut,
+		-1, -- repete pra sempre
+		true -- reverse: volta sozinha (efeito vai-e-volta)
+	)
+
+	local tween = TweenService:Create(part, info, { CFrame = goalCFrame })
+	tween:Play()
+end
+
+for _, inst in CollectionService:GetTagged(Config.Tags.MovingPlatform) do
+	if inst:IsA("BasePart") then
+		startMoving(inst)
+	end
+end
+CollectionService:GetInstanceAddedSignal(Config.Tags.MovingPlatform):Connect(function(inst)
+	if inst:IsA("BasePart") then
+		startMoving(inst)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="10">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="11">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="12">
+        <Properties>
+          <string name="Name">StageGui</string>
+          <string name="Source"><![CDATA[--!strict
+-- StageGui.client.luau  ->  vai em StarterPlayer > StarterPlayerScripts
+-- =========================================================================
+-- Monta na tela do jogador:
+--   * um contador "Estágio: N" no topo
+--   * uma tela grande de "VOCÊ VENCEU! 🏆" quando chega no Finish
+--
+-- Tudo criado por código, então você não precisa desenhar GUI no Studio.
+-- Depois, se quiser deixar bonito, é só mexer nas cores/posições aqui.
+-- =========================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+
+-- ---- ScreenGui base ----
+local gui = Instance.new("ScreenGui")
+gui.Name = "ObbyGui"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- ---- Contador de estágio ----
+local stageLabel = Instance.new("TextLabel")
+stageLabel.Name = "StageLabel"
+stageLabel.AnchorPoint = Vector2.new(0.5, 0)
+stageLabel.Position = UDim2.new(0.5, 0, 0.03, 0)
+stageLabel.Size = UDim2.new(0, 220, 0, 48)
+stageLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+stageLabel.BackgroundTransparency = 0.25
+stageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+stageLabel.Font = Enum.Font.GothamBold
+stageLabel.TextScaled = true
+stageLabel.Text = "Estágio: 0"
+stageLabel.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = stageLabel
+
+-- Segue o valor "Stage" do leaderstats e atualiza o texto
+local function watchStage()
+	local leaderstats = player:WaitForChild("leaderstats")
+	local stage = leaderstats:WaitForChild("Stage") :: IntValue
+
+	local function update()
+		stageLabel.Text = "Estágio: " .. tostring(stage.Value)
+	end
+	update()
+	stage.Changed:Connect(update)
+end
+task.spawn(watchStage)
+
+-- ---- Tela de vitória ----
+local function showWinScreen()
+	local win = Instance.new("TextLabel")
+	win.AnchorPoint = Vector2.new(0.5, 0.5)
+	win.Position = UDim2.new(0.5, 0, 0.5, 0)
+	win.Size = UDim2.new(0, 500, 0, 140)
+	win.BackgroundColor3 = Color3.fromRGB(30, 200, 120)
+	win.TextColor3 = Color3.fromRGB(255, 255, 255)
+	win.Font = Enum.Font.GothamBlack
+	win.TextScaled = true
+	win.Text = "VOCÊ VENCEU! 🏆"
+	win.BackgroundTransparency = 1
+	win.TextTransparency = 1
+	win.Parent = gui
+
+	local winCorner = Instance.new("UICorner")
+	winCorner.CornerRadius = UDim.new(0, 20)
+	winCorner.Parent = win
+
+	-- aparece suave
+	local fadeIn = TweenService:Create(win, TweenInfo.new(0.4), {
+		BackgroundTransparency = 0.1,
+		TextTransparency = 0,
+	})
+	fadeIn:Play()
+
+	-- some depois de 4 segundos
+	task.delay(4, function()
+		local fadeOut = TweenService:Create(win, TweenInfo.new(0.6), {
+			BackgroundTransparency = 1,
+			TextTransparency = 1,
+		})
+		fadeOut:Play()
+		fadeOut.Completed:Connect(function()
+			win:Destroy()
+		end)
+	end)
+end
+
+local finishedEvent = ReplicatedStorage:WaitForChild("ObbyFinished") :: RemoteEvent
+finishedEvent.OnClientEvent:Connect(showWinScreen)
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>
